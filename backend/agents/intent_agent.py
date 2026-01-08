@@ -79,6 +79,30 @@ Output: {{"intent": "add_expense", "description": "groceries", "clarification_ne
 Input: "Split 5000 between A 50%, B 30%, C 20%"
 Output: {{"intent": "add_expense", "amount": 5000, "currency": "INR", "participants": ["A", "B", "C"], "payer": "me", "split_type": "percentage", "split_details": {{"A": 50, "B": 30, "C": 20}}, "clarification_needed": false, "confidence": 0.95}}
 
+Input: "Settle with Rahul"
+Output: {{"intent": "settle", "participants": ["Rahul"], "settle_type": "full", "clarification_needed": false, "confidence": 0.95}}
+
+Input: "Clear all dues with Anushka"
+Output: {{"intent": "settle", "participants": ["Anushka"], "settle_type": "full", "clarification_needed": false, "confidence": 0.95}}
+
+Input: "Clear dues from Anushka and Aneesh"
+Output: {{"intent": "settle", "participants": ["Anushka", "Aneesh"], "settle_type": "full", "clarification_needed": false, "confidence": 0.95}}
+
+Input: "Anushka paid me back"
+Output: {{"intent": "settle", "participants": ["Anushka"], "settle_type": "full", "direction": "received", "clarification_needed": false, "confidence": 0.9}}
+
+Input: "I paid Rahul what I owed"
+Output: {{"intent": "settle", "participants": ["Rahul"], "settle_type": "full", "direction": "paid", "clarification_needed": false, "confidence": 0.9}}
+
+Input: "Mark Amit as settled"
+Output: {{"intent": "settle", "participants": ["Amit"], "settle_type": "full", "clarification_needed": false, "confidence": 0.95}}
+
+Input: "Settle all my dues"
+Output: {{"intent": "settle", "settle_type": "all", "clarification_needed": false, "confidence": 0.9}}
+
+Input: "Paid Rahul 500"
+Output: {{"intent": "settle", "participants": ["Rahul"], "amount": 500, "currency": "INR", "settle_type": "partial", "direction": "paid", "clarification_needed": false, "confidence": 0.95}}
+
 Now parse the user's message:"""
 
     def update_known_users(self, users: List[Dict]):
