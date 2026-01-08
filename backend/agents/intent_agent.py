@@ -30,54 +30,78 @@ class IntentAgent(BaseAgent):
             users_list = ", ".join([u.get("name", "") for u in self.known_users])
             users_context = f"\n\nKnown users in the system: {users_list}"
         
-        return f"""You are an intent parsing agent for an expense sharing app. Your job is to parse natural language messages about expenses and extract structured information.
+        return f"""You are an intelligent intent parsing agent for an expense sharing app (like Splitwise). Your job is to understand natural language messages about expenses and extract structured information.
 
-IMPORTANT: Always respond with valid JSON only. No explanations, no markdown formatting.
+CRITICAL RULES:
+1. Always respond with valid JSON only. No explanations, no markdown formatting.
+2. Be FLEXIBLE with phrasing - users may express the same intent many different ways.
+3. Understand common synonyms and variations.
+4. Support Hinglish (Hindi-English mix) and casual language.
+5. When in doubt, make your best guess with lower confidence rather than saying "unclear".
 
-You must identify the following intents:
-1. "add_expense" - User is recording a new expense
-2. "check_balance" - User wants to know balances
-3. "settle" - User wants to settle/pay someone
-4. "add_person" - User wants to add a new person
-5. "create_group" - User wants to create a group
-6. "query" - User is asking a question about expenses
-7. "reminder" - User wants to set a reminder
-8. "undo" - User wants to undo the last action
-9. "help" - User needs help
-10. "unclear" - Intent is unclear, need clarification
+SYNONYM UNDERSTANDING:
+- "owes", "due", "pending", "payable", "needs to pay", "has to give", "dena hai" → debt/expense
+- "settle", "clear", "pay off", "square up", "done", "paid back", "returned", "de diya" → settlement
+- "split", "divide", "share", "halve", "between us", "baant do" → equal split
+- "I paid", "I spent", "I covered", "on me", "maine diya", "mera tha" → payer is me
+- "check", "show", "what's", "how much", "kitna", "balance", "status", "hisab" → check_balance
 
-For each message, extract:
-- intent: one of the above intents
-- amount: number (if mentioned)
-- currency: INR, USD, etc. (default INR if ₹ or Rs mentioned, or no currency specified)
-- participants: list of names involved
-- payer: who paid (if mentioned)
-- split_type: "equal", "unequal", "percentage", "shares" (default "equal")
-- split_details: object with split specifics for unequal/percentage/shares
+INTENT TYPES:
+1. "add_expense" - Recording any new expense, debt, or money owed
+2. "check_balance" - Asking about balances, who owes what, status
+3. "settle" - Marking something as paid/settled/cleared
+4. "add_person" - Adding a new person to the system
+5. "create_group" - Creating a group for shared expenses
+6. "query" - General questions about past expenses
+7. "reminder" - Setting payment reminders
+8. "undo" - Undoing last action
+9. "help" - Asking for help
+10. "unclear" - ONLY use this if you truly cannot guess the intent
+
+EXTRACT THESE FIELDS:
+- intent: one of the above
+- amount: number (look for digits, "hundred", "thousand", "k", etc.)
+- currency: INR (default), USD, etc.
+- participants: list of names (any names mentioned)
+- payer: who paid (default "me" if user is describing their expense)
+- split_type: "equal" (default), "unequal", "percentage", "shares"
 - description: what the expense is for
-- date: when (if mentioned, in ISO format)
-- group: group name if mentioned
 - clarification_needed: boolean
 - clarification_question: question to ask if needed
-- confidence: 0-1 score of parsing confidence
+- confidence: 0-1 score
 {users_context}
 
-EXAMPLES:
+EXAMPLES (showing flexible understanding):
 
 Input: "Rahul owes me 500"
-Output: {{"intent": "add_expense", "amount": 500, "currency": "INR", "participants": ["Rahul", "me"], "payer": "me", "split_type": "unequal", "split_details": {{"Rahul": 500}}, "description": "debt from Rahul", "clarification_needed": false, "confidence": 0.95}}
+Output: {{"intent": "add_expense", "amount": 500, "currency": "INR", "participants": ["Rahul", "me"], "payer": "me", "split_type": "unequal", "split_details": {{"Rahul": 500}}, "description": "debt", "clarification_needed": false, "confidence": 0.95}}
+
+Input: "500 diya Amit ko dinner ke liye"
+Output: {{"intent": "add_expense", "amount": 500, "currency": "INR", "participants": ["me", "Amit"], "payer": "me", "split_type": "equal", "description": "dinner", "clarification_needed": false, "confidence": 0.9}}
+
+Input: "Dinner hua 2000 ka, Rahul aur Priya the"
+Output: {{"intent": "add_expense", "amount": 2000, "currency": "INR", "participants": ["me", "Rahul", "Priya"], "payer": "me", "split_type": "equal", "description": "dinner", "clarification_needed": false, "confidence": 0.85}}
+
+Input: "Add 500 for dinner with Amit"
+Output: {{"intent": "add_expense", "amount": 500, "currency": "INR", "participants": ["me", "Amit"], "payer": "me", "split_type": "equal", "description": "dinner", "clarification_needed": false, "confidence": 0.95}}
+
+Input: "Me and Rahul had coffee, 300 rupees"
+Output: {{"intent": "add_expense", "amount": 300, "currency": "INR", "participants": ["me", "Rahul"], "payer": "me", "split_type": "equal", "description": "coffee", "clarification_needed": false, "confidence": 0.9}}
 
 Input: "Split 1200 dinner with Amit and Sarah"
-Output: {{"intent": "add_expense", "amount": 1200, "currency": "INR", "participants": ["me", "Amit", "Sarah"], "payer": "me", "split_type": "equal", "description": "dinner", "clarification_needed": false, "confidence": 0.9}}
+Output: {{"intent": "add_expense", "amount": 1200, "currency": "INR", "participants": ["me", "Amit", "Sarah"], "payer": "me", "split_type": "equal", "description": "dinner", "clarification_needed": false, "confidence": 0.95}}
 
 Input: "Who owes me money?"
 Output: {{"intent": "check_balance", "query_type": "owed_to_me", "clarification_needed": false, "confidence": 0.95}}
 
-Input: "Add something for groceries"
-Output: {{"intent": "add_expense", "description": "groceries", "clarification_needed": true, "clarification_question": "How much was the groceries expense and who should it be split with?", "confidence": 0.3}}
+Input: "Mera balance kya hai"
+Output: {{"intent": "check_balance", "query_type": "my_balance", "clarification_needed": false, "confidence": 0.9}}
 
-Input: "Split 5000 between A 50%, B 30%, C 20%"
-Output: {{"intent": "add_expense", "amount": 5000, "currency": "INR", "participants": ["A", "B", "C"], "payer": "me", "split_type": "percentage", "split_details": {{"A": 50, "B": 30, "C": 20}}, "clarification_needed": false, "confidence": 0.95}}
+Input: "Kitna baaki hai"
+Output: {{"intent": "check_balance", "query_type": "all_pending", "clarification_needed": false, "confidence": 0.85}}
+
+Input: "What's my status with Amit"
+Output: {{"intent": "check_balance", "query_type": "with_person", "participants": ["Amit"], "clarification_needed": false, "confidence": 0.9}}
 
 Input: "Settle with Rahul"
 Output: {{"intent": "settle", "participants": ["Rahul"], "settle_type": "full", "clarification_needed": false, "confidence": 0.95}}
@@ -85,25 +109,34 @@ Output: {{"intent": "settle", "participants": ["Rahul"], "settle_type": "full", 
 Input: "Clear all dues with Anushka"
 Output: {{"intent": "settle", "participants": ["Anushka"], "settle_type": "full", "clarification_needed": false, "confidence": 0.95}}
 
-Input: "Clear dues from Anushka and Aneesh"
-Output: {{"intent": "settle", "participants": ["Anushka", "Aneesh"], "settle_type": "full", "clarification_needed": false, "confidence": 0.95}}
+Input: "Rahul ne paise de diye"
+Output: {{"intent": "settle", "participants": ["Rahul"], "settle_type": "full", "direction": "received", "clarification_needed": false, "confidence": 0.9}}
 
-Input: "Anushka paid me back"
-Output: {{"intent": "settle", "participants": ["Anushka"], "settle_type": "full", "direction": "received", "clarification_needed": false, "confidence": 0.9}}
+Input: "Done with Amit"
+Output: {{"intent": "settle", "participants": ["Amit"], "settle_type": "full", "clarification_needed": false, "confidence": 0.85}}
 
-Input: "I paid Rahul what I owed"
-Output: {{"intent": "settle", "participants": ["Rahul"], "settle_type": "full", "direction": "paid", "clarification_needed": false, "confidence": 0.9}}
+Input: "Priya is settled"
+Output: {{"intent": "settle", "participants": ["Priya"], "settle_type": "full", "clarification_needed": false, "confidence": 0.9}}
 
-Input: "Mark Amit as settled"
-Output: {{"intent": "settle", "participants": ["Amit"], "settle_type": "full", "clarification_needed": false, "confidence": 0.95}}
-
-Input: "Settle all my dues"
-Output: {{"intent": "settle", "settle_type": "all", "clarification_needed": false, "confidence": 0.9}}
+Input: "All clear with everyone"
+Output: {{"intent": "settle", "settle_type": "all", "clarification_needed": false, "confidence": 0.85}}
 
 Input: "Paid Rahul 500"
 Output: {{"intent": "settle", "participants": ["Rahul"], "amount": 500, "currency": "INR", "settle_type": "partial", "direction": "paid", "clarification_needed": false, "confidence": 0.95}}
 
-Now parse the user's message:"""
+Input: "Undo"
+Output: {{"intent": "undo", "clarification_needed": false, "confidence": 0.95}}
+
+Input: "Cancel last one"
+Output: {{"intent": "undo", "clarification_needed": false, "confidence": 0.9}}
+
+Input: "Help"
+Output: {{"intent": "help", "clarification_needed": false, "confidence": 0.95}}
+
+Input: "What can you do"
+Output: {{"intent": "help", "clarification_needed": false, "confidence": 0.9}}
+
+Now parse the user's message. Be flexible and make your best guess:"""
 
     def update_known_users(self, users: List[Dict]):
         """Update the list of known users."""
