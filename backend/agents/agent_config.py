@@ -1,8 +1,8 @@
-"""OpenAI API configuration and base agent class."""
+"""NVIDIA API configuration and base agent class."""
 
 import os
 import json
-from openai import AsyncOpenAI
+import httpx
 from typing import Dict, Any, List, Optional
 from dataclasses import dataclass, field
 
@@ -10,8 +10,9 @@ from dataclasses import dataclass, field
 @dataclass
 class AgentConfig:
     """Configuration for AI agents."""
-    api_key: str = field(default_factory=lambda: os.getenv("OPENAI_API_KEY", ""))
-    model: str = "gpt-3.5-turbo"  # Cost-effective, fast model
+    api_key: str = field(default_factory=lambda: os.getenv("NVIDIA_API_KEY", ""))
+    base_url: str = "https://integrate.api.nvidia.com/v1"
+    model: str = "meta/llama-3.1-8b-instruct"  # Working NVIDIA model
     max_tokens: int = 1024
     temperature: float = 0.7
 
@@ -22,18 +23,13 @@ class BaseAgent:
     def __init__(self, config: AgentConfig = None):
         self.config = config or AgentConfig()
         self.system_prompt = ""
-        
-        # Initialize OpenAI client
-        if self.config.api_key:
-            self.client = AsyncOpenAI(api_key=self.config.api_key)
-        else:
-            self.client = None
+        self.client = httpx.AsyncClient(timeout=60.0)
     
     async def _call_llm(self, messages: List[Dict[str, str]], 
                         temperature: float = None,
                         max_tokens: int = None) -> str:
         """
-        Call the OpenAI API.
+        Call the NVIDIA LLM API.
         
         Args:
             messages: List of message dicts with 'role' and 'content'
@@ -43,20 +39,39 @@ class BaseAgent:
         Returns:
             The model's response text
         """
-        if not self.client:
+        if not self.config.api_key:
             return json.dumps({
                 "error": "No API key configured",
-                "message": "Please set the OPENAI_API_KEY environment variable"
+                "message": "Please set the NVIDIA_API_KEY environment variable"
             })
         
+        headers = {
+            "Authorization": f"Bearer {self.config.api_key}",
+            "Content-Type": "application/json"
+        }
+        
+        payload = {
+            "model": self.config.model,
+            "messages": messages,
+            "temperature": temperature or self.config.temperature,
+            "max_tokens": max_tokens or self.config.max_tokens
+        }
+        
         try:
-            response = await self.client.chat.completions.create(
-                model=self.config.model,
-                messages=messages,
-                temperature=temperature or self.config.temperature,
-                max_tokens=max_tokens or self.config.max_tokens
+            response = await self.client.post(
+                f"{self.config.base_url}/chat/completions",
+                headers=headers,
+                json=payload
             )
-            return response.choices[0].message.content
+            response.raise_for_status()
+            data = response.json()
+            return data["choices"][0]["message"]["content"]
+        except httpx.HTTPStatusError as e:
+            print(f"HTTP error: {e.response.status_code} - {e.response.text}")
+            return json.dumps({
+                "error": f"HTTP {e.response.status_code}",
+                "message": "API request failed"
+            })
         except Exception as e:
             print(f"Error calling LLM: {e}")
             return json.dumps({
