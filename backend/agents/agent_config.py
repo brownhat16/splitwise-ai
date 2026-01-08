@@ -12,7 +12,7 @@ class AgentConfig:
     """Configuration for AI agents."""
     api_key: str = field(default_factory=lambda: os.getenv("NVIDIA_API_KEY", ""))
     base_url: str = "https://integrate.api.nvidia.com/v1"
-    model: str = "meta/llama-3.1-8b-instruct"  # Working NVIDIA model
+    model: str = "nvidia/llama-3.3-nemotron-super-49b-v1.5"  # Powerful NVIDIA model
     max_tokens: int = 1024
     temperature: float = 0.7
 
