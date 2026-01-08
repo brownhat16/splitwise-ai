@@ -2,64 +2,68 @@
 
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
-import { ArrowRightIcon } from '@heroicons/react/24/outline';
+import { ArrowRightIcon, ArrowPathIcon } from '@heroicons/react/24/outline';
 import FloatingAIButton from '@/components/layout/FloatingAIButton';
 import api, { BalanceResponse } from '@/lib/api';
-import { mockBalances, mockUsers } from '@/lib/mock-data';
 
 export default function DashboardPage() {
     const [balance, setBalance] = useState<BalanceResponse | null>(null);
     const [loading, setLoading] = useState(true);
+    const [error, setError] = useState<string | null>(null);
+
+    const fetchBalance = async () => {
+        setLoading(true);
+        setError(null);
+        try {
+            const data = await api.getBalance();
+            setBalance(data);
+        } catch (err) {
+            console.error('Error fetching balance:', err);
+            setError('Failed to load balances');
+        } finally {
+            setLoading(false);
+        }
+    };
 
     useEffect(() => {
-        async function fetchBalance() {
-            try {
-                const data = await api.getBalance();
-                setBalance(data);
-            } catch (error) {
-                console.error('Error fetching balance:', error);
-            } finally {
-                setLoading(false);
-            }
-        }
         fetchBalance();
     }, []);
 
-    // Use mock data if API returns empty
-    const totalOwedToYou = balance?.total_owed_to_you ||
-        mockBalances.filter(b => b.amount > 0).reduce((sum, b) => sum + b.amount, 0);
-    const totalYouOwe = balance?.total_you_owe ||
-        Math.abs(mockBalances.filter(b => b.amount < 0).reduce((sum, b) => sum + b.amount, 0));
-    const netBalance = totalOwedToYou - totalYouOwe;
-
-    const peopleWhoOweYou = balance?.owed_to_you?.length
-        ? balance.owed_to_you
-        : mockBalances.filter(b => b.amount > 0).map(b => ({
-            user_id: b.user.id,
-            name: b.user.name,
-            amount: b.amount
-        }));
-
-    const peopleYouOwe = balance?.you_owe?.length
-        ? balance.you_owe
-        : mockBalances.filter(b => b.amount < 0).map(b => ({
-            user_id: b.user.id,
-            name: b.user.name,
-            amount: Math.abs(b.amount)
-        }));
+    // Use real API data only
+    const totalOwedToYou = balance?.total_owed_to_you || 0;
+    const totalYouOwe = balance?.total_you_owe || 0;
+    const netBalance = balance?.net_balance || 0;
+    const peopleWhoOweYou = balance?.owed_to_you || [];
+    const peopleYouOwe = balance?.you_owe || [];
 
     return (
         <div className="min-h-screen bg-slate-50 dark:bg-slate-950">
             {/* Header */}
             <header className="bg-gradient-to-r from-indigo-600 to-purple-600 text-white px-4 py-8 md:px-8">
-                <h1 className="text-xl font-semibold mb-6">Dashboard</h1>
+                <div className="flex items-center justify-between mb-6">
+                    <h1 className="text-xl font-semibold">Dashboard</h1>
+                    <button
+                        onClick={fetchBalance}
+                        disabled={loading}
+                        className="p-2 rounded-full bg-white/10 hover:bg-white/20 transition-colors disabled:opacity-50"
+                        aria-label="Refresh"
+                    >
+                        <ArrowPathIcon className={`w-5 h-5 ${loading ? 'animate-spin' : ''}`} />
+                    </button>
+                </div>
 
                 {/* Net Position */}
                 <div className="text-center py-6">
                     <p className="text-indigo-200 text-sm mb-1">Your net balance</p>
-                    <p className={`text-4xl font-bold ${netBalance >= 0 ? 'text-emerald-300' : 'text-red-300'}`}>
-                        {netBalance >= 0 ? '+' : ''}₹{Math.abs(netBalance).toLocaleString()}
-                    </p>
+                    {loading ? (
+                        <div className="h-10 flex items-center justify-center">
+                            <div className="animate-pulse text-2xl">Loading...</div>
+                        </div>
+                    ) : (
+                        <p className={`text-4xl font-bold ${netBalance >= 0 ? 'text-emerald-300' : 'text-red-300'}`}>
+                            {netBalance >= 0 ? '+' : ''}₹{Math.abs(netBalance).toLocaleString()}
+                        </p>
+                    )}
                     <p className="text-sm mt-2 text-indigo-200">
                         {netBalance >= 0
                             ? "You're owed money overall 🎉"

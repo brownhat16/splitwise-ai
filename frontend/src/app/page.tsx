@@ -48,28 +48,14 @@ export default function ChatPage() {
       setMessages(prev => {
         const filtered = prev.filter(m => !m.isThinking);
 
-        // Check if response includes expense data
-        let expense = undefined;
-        if (response.data?.expense_id) {
-          expense = mockExpenses.find(e => e.id === response.data?.expense_id) || {
-            id: response.data.expense_id,
-            description: 'Expense',
-            amount: 500,
-            currency: 'INR',
-            payer: mockUsers[0],
-            participants: [mockUsers[0], mockUsers[1]],
-            splits: [],
-            date: new Date().toISOString().split('T')[0],
-            isSettled: false,
-          };
-        }
-
+        // The AI response text already contains all expense details,
+        // so we don't need to show a separate expense card
         const aiMessage: Message = {
           id: Date.now().toString(),
           type: 'ai',
           content: response.response,
           timestamp: new Date(),
-          expense,
+          // Only show action buttons if it's a successful action (not a clarification)
           actions: response.needs_clarification ? undefined : ['Undo', 'Explain'],
           quickReplies: response.needs_clarification ? ['Yes', 'No'] : undefined,
         };
