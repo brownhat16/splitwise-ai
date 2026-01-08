@@ -166,9 +166,94 @@ export default function DashboardPage() {
                         </p>
                     </div>
                 )}
+
+                {/* Recent Activity */}
+                <section className="mt-6">
+                    <h2 className="text-sm font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-3">
+                        Recent Activity
+                    </h2>
+                    <RecentActivity />
+                </section>
             </div>
 
             <FloatingAIButton />
+        </div>
+    );
+}
+
+// Recent Activity Component
+function RecentActivity() {
+    const [history, setHistory] = useState<Array<{ type: string; description: string; amount: number; date: string; parties: string[] }>>([]);
+    const [loading, setLoading] = useState(true);
+
+    useEffect(() => {
+        async function fetchHistory() {
+            try {
+                const response = await api.getHistory(10);
+                // Transform backend history to our format
+                if (response.history && response.history.length > 0) {
+                    const transformed = response.history.map((item: Record<string, unknown>) => ({
+                        type: String(item.entry_type || 'expense'),
+                        description: String(item.description || 'Transaction'),
+                        amount: Math.abs(Number(item.amount) || 0),
+                        date: item.timestamp ? new Date(item.timestamp as string).toLocaleDateString() : 'Today',
+                        parties: [] as string[]
+                    }));
+                    setHistory(transformed);
+                }
+            } catch (error) {
+                console.error('Error fetching history:', error);
+            } finally {
+                setLoading(false);
+            }
+        }
+        fetchHistory();
+    }, []);
+
+    if (loading) {
+        return (
+            <div className="text-center py-8 text-slate-400">
+                <div className="animate-pulse">Loading activity...</div>
+            </div>
+        );
+    }
+
+    if (history.length === 0) {
+        return (
+            <div className="text-center py-8 bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-700">
+                <div className="text-4xl mb-2">📋</div>
+                <p className="text-slate-500 dark:text-slate-400">No activity yet</p>
+                <p className="text-sm text-slate-400 dark:text-slate-500 mt-1">
+                    Start by adding an expense in Chat
+                </p>
+            </div>
+        );
+    }
+
+    return (
+        <div className="space-y-2">
+            {history.map((item, idx) => (
+                <div
+                    key={idx}
+                    className="flex items-center gap-3 p-3 bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-700"
+                >
+                    <div className={`w-8 h-8 rounded-full flex items-center justify-center text-sm ${item.type === 'settlement'
+                        ? 'bg-emerald-100 dark:bg-emerald-900 text-emerald-600'
+                        : 'bg-indigo-100 dark:bg-indigo-900 text-indigo-600'
+                        }`}>
+                        {item.type === 'settlement' ? '✓' : '₹'}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                        <p className="text-sm font-medium text-slate-800 dark:text-white truncate">
+                            {item.description}
+                        </p>
+                        <p className="text-xs text-slate-500">{item.date}</p>
+                    </div>
+                    <span className="text-sm font-medium text-slate-700 dark:text-slate-300">
+                        ₹{item.amount.toLocaleString()}
+                    </span>
+                </div>
+            ))}
         </div>
     );
 }

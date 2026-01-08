@@ -3,13 +3,43 @@
 import { useState, useRef, useEffect } from 'react';
 import MessageBubble from '@/components/chat/MessageBubble';
 import ChatInput from '@/components/chat/ChatInput';
-import { Message, initialMessages, mockUsers, mockExpenses } from '@/lib/mock-data';
+import { Message, initialMessages } from '@/lib/mock-data';
 import api from '@/lib/api';
+import { TrashIcon } from '@heroicons/react/24/outline';
+
+const CHAT_STORAGE_KEY = 'splitai_chat_history';
 
 export default function ChatPage() {
-  const [messages, setMessages] = useState<Message[]>(initialMessages);
+  const [messages, setMessages] = useState<Message[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+
+  // Load chat history from localStorage on mount
+  useEffect(() => {
+    const saved = localStorage.getItem(CHAT_STORAGE_KEY);
+    if (saved) {
+      try {
+        const parsed = JSON.parse(saved);
+        // Convert timestamp strings back to Date objects
+        const restored = parsed.map((m: Message) => ({
+          ...m,
+          timestamp: new Date(m.timestamp)
+        }));
+        setMessages(restored);
+      } catch {
+        setMessages(initialMessages);
+      }
+    } else {
+      setMessages(initialMessages);
+    }
+  }, []);
+
+  // Save chat history to localStorage whenever messages change
+  useEffect(() => {
+    if (messages.length > 0) {
+      localStorage.setItem(CHAT_STORAGE_KEY, JSON.stringify(messages));
+    }
+  }, [messages]);
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -18,6 +48,11 @@ export default function ChatPage() {
   useEffect(() => {
     scrollToBottom();
   }, [messages]);
+
+  const clearHistory = () => {
+    localStorage.removeItem(CHAT_STORAGE_KEY);
+    setMessages(initialMessages);
+  };
 
   const handleSend = async (text: string) => {
     // Add user message
@@ -90,8 +125,15 @@ export default function ChatPage() {
   return (
     <div className="flex flex-col h-screen">
       {/* Header */}
-      <header className="flex items-center justify-between px-4 h-14 bg-white dark:bg-slate-900 border-b border-slate-200 dark:border-slate-700 md:hidden">
+      <header className="flex items-center justify-between px-4 h-14 bg-white dark:bg-slate-900 border-b border-slate-200 dark:border-slate-700">
         <h1 className="text-lg font-semibold text-slate-800 dark:text-white">💬 Chat</h1>
+        <button
+          onClick={clearHistory}
+          className="p-2 text-slate-400 hover:text-red-500 transition-colors"
+          title="Clear chat history"
+        >
+          <TrashIcon className="w-5 h-5" />
+        </button>
       </header>
 
       {/* Messages */}
