@@ -100,6 +100,10 @@ Output: {{"intent": "check_balance", "query_type": "my_balance", "clarification_
 Input: "Kitna baaki hai"
 Output: {{"intent": "check_balance", "query_type": "all_pending", "clarification_needed": false, "confidence": 0.85}}
 
+Input: "I owe Manasvi 200"
+Output: {{"intent": "add_expense", "amount": 200, "currency": "INR", "participants": ["me", "Manasvi"], "payer": "Manasvi", "split_type": "unequal", "split_details": {{"me": 200}}, "description": "debt", "clarification_needed": false, "confidence": 0.95}}
+Output: {{"intent": "check_balance", "query_type": "all_pending", "clarification_needed": false, "confidence": 0.85}}
+
 Input: "What's my status with Amit"
 Output: {{"intent": "check_balance", "query_type": "with_person", "participants": ["Amit"], "clarification_needed": false, "confidence": 0.9}}
 
