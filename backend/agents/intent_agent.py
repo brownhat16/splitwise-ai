@@ -46,6 +46,10 @@ SYNONYM UNDERSTANDING:
 - "I paid", "I spent", "I covered", "on me", "maine diya", "mera tha" → payer is me
 - "check", "show", "what's", "how much", "kitna", "balance", "status", "hisab" → check_balance
 
+CONTEXT UTILITY:
+- If provided with "LAST EXPENSE" context, use it to fill missing details for inputs like "like last time", "same split", "repeat".
+- E.g. if last expense was "Dinner 500 equal", and user says "Lunch 300 like last time", use "equal" split.
+
 INTENT TYPES:
 1. "add_expense" - Recording any new expense, debt, or money owed
 2. "check_balance" - Asking about balances, who owes what, status
@@ -107,7 +111,6 @@ Output: {{"intent": "check_balance", "query_type": "all_pending", "clarification
 
 Input: "I owe Manasvi 200"
 Output: {{"intent": "add_expense", "amount": 200, "currency": "INR", "participants": ["me", "Manasvi"], "payer": "Manasvi", "split_type": "unequal", "split_details": {{"me": 200}}, "description": "debt", "clarification_needed": false, "confidence": 0.95}}
-Output: {{"intent": "check_balance", "query_type": "all_pending", "clarification_needed": false, "confidence": 0.85}}
 
 Input: "What's my status with Amit"
 Output: {{"intent": "check_balance", "query_type": "with_person", "participants": ["Amit"], "clarification_needed": false, "confidence": 0.9}}
@@ -151,6 +154,27 @@ Now parse the user's message. Be flexible and make your best guess:"""
         """Update the list of known users."""
         self.known_users = users
         self.system_prompt = self._build_system_prompt()
+    
+    def _build_messages(self, user_input: str, context: Dict[str, Any] = None) -> List[Dict[str, str]]:
+        """Build messages with context injection."""
+        # Start with standard messages (system prompt + history)
+        messages = super()._build_messages(user_input, context)
+        
+        # Inject last expense context if available
+        if context and context.get("last_expense"):
+            le = context["last_expense"]
+            ctx_msg = f"""CONTEXT - LAST EXPENSE:
+Description: {le.get('description')}
+Amount: {le.get('amount')}
+Currency: {le.get('currency')}
+Split Type: {le.get('split_type')}
+
+If the user says "like last time", "same as before", or "repeat", use the above details."""
+            
+            # Insert before the last message (which is usually the user input)
+            messages.insert(-1, {"role": "system", "content": ctx_msg})
+            
+        return messages
     
     async def process(self, user_input: str, context: Dict[str, Any] = None) -> Dict[str, Any]:
         """

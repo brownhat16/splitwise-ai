@@ -92,13 +92,17 @@ class ExpenseSplitter:
         ]
     
     @staticmethod
-    def split_percentage(total_amount: float, percentages: Dict[int, float]) -> List[SplitResult]:
+    def split_percentage(total_amount: float, percentages: Dict[int, float], 
+                        participants: List[int] = None) -> List[SplitResult]:
         """
         Split an expense by percentages.
         
         Args:
             total_amount: Total expense amount
             percentages: Dict of {user_id: percentage} for each participant
+            participants: Optional list of all user IDs involved. If provided and 
+                         percentages sum < 100, remainder is split equally among
+                         participants not in the percentages dict.
             
         Returns:
             List of SplitResult for each participant
@@ -107,8 +111,20 @@ class ExpenseSplitter:
             raise ValueError("At least one participant percentage is required")
         
         total_percentage = sum(percentages.values())
+        
+        # Handle < 100% if participants provided (hybrid split)
+        remaining_users = []
+        if participants and total_percentage < 99.99:
+            remaining_users = [uid for uid in participants if uid not in percentages]
+            if remaining_users:
+                remainder = 100 - total_percentage
+                share = remainder / len(remaining_users)
+                for uid in remaining_users:
+                    percentages[uid] = share
+                total_percentage = 100.0
+
         if abs(total_percentage - 100) > 0.01:
-            raise ValueError(f"Percentages must sum to 100, got {total_percentage}")
+            raise ValueError(f"Total percentage ({total_percentage}) must be 100")
         
         results = []
         running_total = 0
@@ -116,7 +132,7 @@ class ExpenseSplitter:
         
         for i, (user_id, percentage) in enumerate(items):
             if i == len(items) - 1:
-                # Last person gets remainder to avoid rounding issues
+                # Last person gets remainder of amount to avoid rounding issues
                 amount = round(total_amount - running_total, 2)
             else:
                 amount = round(total_amount * (percentage / 100), 2)

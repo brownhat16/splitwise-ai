@@ -75,6 +75,11 @@ class AgentOrchestrator:
         known_users = await self._get_known_users()
         self.intent_agent.update_known_users(known_users)
         
+        # Add rich context (last expense)
+        if context is None:
+            context = {}
+        context["last_expense"] = await self._get_last_expense_context(user_id)
+        
         # Parse intent
         intent_result = await self.intent_agent.process(message, context)
         
@@ -170,7 +175,7 @@ class AgentOrchestrator:
                 else:
                     uid = await self._get_or_create_user_by_name(name)
                     percentages_by_id[uid] = pct
-            splits = splitter.split_percentage(amount, percentages_by_id)
+            splits = splitter.split_percentage(amount, percentages_by_id, participant_ids)
         elif split_type == "shares":
             shares_by_id = {}
             for name, sh in split_details.items():
@@ -444,7 +449,7 @@ Provide a helpful, conversational response to their query."""
         )
         
         return {
-            "response": f"Here's the reminder I'll send to {target}:\n\n\"{reminder.get('message', 'Payment reminder')}\"",
+            "response": f"Okay, I've scheduled a reminder for {target} to pay you. I'll nudge them tomorrow!",
             "reminder": reminder,
             "success": True
         }
@@ -469,12 +474,17 @@ Provide a helpful, conversational response to their query."""
         expense_desc = expense.description
         expense_amount = expense.amount
         
-        # Delete the expense (cascade will handle splits)
+        # Reverse the expense in ledger logic (create offsetting entries)
+        # This preserves the audit trail in the ledger even if the expense object is removed
+        await self.ledger_manager.reverse_expense(expense)
+        
+        # Delete the expense object to remove it from the active list
+        # (Ledger entries will have expense_id set to NULL if configured, or cascade)
         await self.db.delete(expense)
         await self.db.commit()
         
         return {
-            "response": f"Done! I've removed the expense '{expense_desc}' for ₹{expense_amount:,.2f}.",
+            "response": f"Done! I've reversed the expense '{expense_desc}' for ₹{expense_amount:,.2f} and corrected all balances.",
             "success": True
         }
     
@@ -577,3 +587,21 @@ Just chat naturally and I'll figure out what you need! 💬"""
         await self.context_agent.close()
         await self.reconciliation_agent.close()
         await self.notification_agent.close()
+
+    async def _get_last_expense_context(self, user_id: int) -> Optional[Dict[str, Any]]:
+        """Get context about the last expense for this user."""
+        query = select(Expense).where(
+            Expense.payer_id == user_id
+        ).order_by(Expense.created_at.desc()).limit(1)
+        result = await self.db.execute(query)
+        expense = result.scalar_one_or_none()
+        
+        if not expense:
+            return None
+            
+        return {
+            "description": expense.description,
+            "amount": expense.amount,
+            "currency": expense.currency,
+            "split_type": expense.split_type.value
+        }

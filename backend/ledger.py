@@ -98,6 +98,59 @@ class LedgerManager:
         result = await self.db.execute(query)
         balance = result.scalar() or 0.0
         return balance
+
+    async def reverse_expense(self, expense: Expense) -> List[LedgerEntry]:
+        """
+        Reverse an expense by creating offsetting ledger entries.
+        """
+        # Find original entries for this expense
+        query = select(LedgerEntry).where(LedgerEntry.expense_id == expense.id)
+        result = await self.db.execute(query)
+        original_entries = result.scalars().all()
+        
+        reversal_entries = []
+        for entry in original_entries:
+            reversal = LedgerEntry(
+                user_id=entry.user_id,
+                counterparty_id=entry.counterparty_id,
+                amount=-entry.amount, # Invert amount
+                expense_id=expense.id,
+                description=f"Reversal: {entry.description}",
+                timestamp=datetime.utcnow()
+            )
+            reversal_entries.append(reversal)
+            
+        self.db.add_all(reversal_entries)
+        await self.db.flush()
+        return reversal_entries
+
+    async def reverse_settlement(self, transaction_id: int) -> bool:
+        """
+        Reverse a settlement (Transaction) by creating offsetting ledger entries.
+        """
+        # Find original entries for this transaction
+        query = select(LedgerEntry).where(LedgerEntry.transaction_id == transaction_id)
+        result = await self.db.execute(query)
+        original_entries = result.scalars().all()
+        
+        if not original_entries:
+            return False
+            
+        reversal_entries = []
+        for entry in original_entries:
+            reversal = LedgerEntry(
+                user_id=entry.user_id,
+                counterparty_id=entry.counterparty_id,
+                amount=-entry.amount, # Invert amount
+                transaction_id=transaction_id,
+                description=f"Reversal: {entry.description}",
+                timestamp=datetime.utcnow()
+            )
+            reversal_entries.append(reversal)
+            
+        self.db.add_all(reversal_entries)
+        await self.db.flush()
+        return True
     
     async def get_all_balances_for_user(self, user_id: int) -> Dict[int, float]:
         """
