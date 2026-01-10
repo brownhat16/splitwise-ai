@@ -2,9 +2,9 @@
 
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
-import { ArrowRightIcon, ArrowPathIcon } from '@heroicons/react/24/outline';
-import FloatingAIButton from '@/components/layout/FloatingAIButton';
+import { ArrowUpRight, ArrowDownLeft, RefreshCw } from 'lucide-react';
 import api, { BalanceResponse } from '@/lib/api';
+import { cn } from '@/lib/utils';
 
 export default function DashboardPage() {
     const [balance, setBalance] = useState<BalanceResponse | null>(null);
@@ -37,223 +37,147 @@ export default function DashboardPage() {
     const peopleYouOwe = balance?.you_owe || [];
 
     return (
-        <div className="min-h-screen bg-slate-50 dark:bg-slate-950">
-            {/* Header */}
-            <header className="bg-gradient-to-r from-indigo-600 to-purple-600 text-white px-4 py-8 md:px-8">
-                <div className="flex items-center justify-between mb-6">
-                    <h1 className="text-xl font-semibold">Dashboard</h1>
+        <div className="min-h-screen bg-background pb-20 md:pl-64 pt-6">
+            <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 space-y-8 animate-fade-in">
+                {/* Header */}
+                <div className="flex items-center justify-between">
+                    <div>
+                        <h1 className="text-3xl font-bold tracking-tight text-foreground">Overview</h1>
+                        <p className="text-muted-foreground mt-1">Track your shared expenses and settlements.</p>
+                    </div>
                     <button
                         onClick={fetchBalance}
                         disabled={loading}
-                        className="p-2 rounded-full bg-white/10 hover:bg-white/20 transition-colors disabled:opacity-50"
+                        className="p-2.5 rounded-full bg-secondary text-secondary-foreground hover:bg-secondary/80 transition-colors disabled:opacity-50"
                         aria-label="Refresh"
                     >
-                        <ArrowPathIcon className={`w-5 h-5 ${loading ? 'animate-spin' : ''}`} />
+                        <RefreshCw className={cn("w-5 h-5", loading && "animate-spin")} />
                     </button>
                 </div>
 
-                {/* Net Position */}
-                <div className="text-center py-6">
-                    <p className="text-indigo-200 text-sm mb-1">Your net balance</p>
-                    {loading ? (
-                        <div className="h-10 flex items-center justify-center">
-                            <div className="animate-pulse text-2xl">Loading...</div>
+                {/* Net Position Card */}
+                <div className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-primary to-primary/90 text-primary-foreground p-8 shadow-lg">
+                    <div className="absolute top-0 right-0 -mr-16 -mt-16 w-64 h-64 rounded-full bg-white/10 blur-3xl pointer-events-none" />
+
+                    <div className="relative z-10 flex flex-col md:flex-row justify-between items-start md:items-end gap-6">
+                        <div>
+                            <p className="text-primary-foreground/80 font-medium mb-1">Total Net Balance</p>
+                            {loading ? (
+                                <div className="h-12 w-48 bg-white/10 rounded animate-pulse" />
+                            ) : (
+                                <h2 className="text-5xl font-bold tracking-tight">
+                                    {netBalance >= 0 ? '+' : ''}₹{Math.abs(netBalance).toLocaleString()}
+                                </h2>
+                            )}
+                            <p className="mt-2 text-sm text-primary-foreground/70">
+                                {netBalance >= 0
+                                    ? "You're owed money overall 🎉"
+                                    : "You owe money overall"}
+                            </p>
                         </div>
-                    ) : (
-                        <p className={`text-4xl font-bold ${netBalance >= 0 ? 'text-emerald-300' : 'text-red-300'}`}>
-                            {netBalance >= 0 ? '+' : ''}₹{Math.abs(netBalance).toLocaleString()}
-                        </p>
-                    )}
-                    <p className="text-sm mt-2 text-indigo-200">
-                        {netBalance >= 0
-                            ? "You're owed money overall 🎉"
-                            : "You owe money overall"}
-                    </p>
+                        <div className="flex gap-4">
+                            <div className="bg-white/10 backdrop-blur-md rounded-2xl p-4 min-w-[140px] border border-white/10">
+                                <div className="flex items-center gap-2 text-emerald-300 mb-1">
+                                    <ArrowDownLeft className="w-4 h-4" />
+                                    <span className="text-xs font-medium uppercase tracking-wider text-white/70">Owed to you</span>
+                                </div>
+                                <p className="text-2xl font-bold text-white">₹{totalOwedToYou.toLocaleString()}</p>
+                            </div>
+                            <div className="bg-white/10 backdrop-blur-md rounded-2xl p-4 min-w-[140px] border border-white/10">
+                                <div className="flex items-center gap-2 text-rose-300 mb-1">
+                                    <ArrowUpRight className="w-4 h-4" />
+                                    <span className="text-xs font-medium uppercase tracking-wider text-white/70">You owe</span>
+                                </div>
+                                <p className="text-2xl font-bold text-white">₹{totalYouOwe.toLocaleString()}</p>
+                            </div>
+                        </div>
+                    </div>
                 </div>
 
-                {/* Summary Cards */}
-                <div className="grid grid-cols-2 gap-4 mt-4">
-                    <div className="bg-white/10 backdrop-blur rounded-xl p-4">
-                        <p className="text-indigo-200 text-xs mb-1">Owed to you</p>
-                        <p className="text-2xl font-bold text-emerald-300">₹{totalOwedToYou.toLocaleString()}</p>
+                {/* Detailed Sections */}
+                <div className="grid md:grid-cols-2 gap-6">
+                    {/* People who owe you */}
+                    <div className="space-y-4">
+                        <div className="flex items-center justify-between">
+                            <h3 className="text-lg font-semibold text-foreground flex items-center gap-2">
+                                <ArrowDownLeft className="w-5 h-5 text-emerald-500" />
+                                Owed to You
+                            </h3>
+                        </div>
+
+                        {peopleWhoOweYou.length > 0 ? (
+                            <div className="space-y-3">
+                                {peopleWhoOweYou.map((person, idx) => (
+                                    <Link
+                                        key={idx}
+                                        href={`/?message=Settle with ${person.name}`}
+                                        className="group flex items-center justify-between p-4 bg-card hover:bg-muted/50 border border-border rounded-2xl transition-all duration-200 shadow-sm hover:shadow-md"
+                                    >
+                                        <div className="flex items-center gap-3">
+                                            <div className="w-10 h-10 rounded-full bg-emerald-100 dark:bg-emerald-900/30 flex items-center justify-center text-emerald-600 dark:text-emerald-400 font-bold text-sm">
+                                                {person.name.charAt(0)}
+                                            </div>
+                                            <span className="font-medium text-foreground">{person.name}</span>
+                                        </div>
+                                        <div className="text-right">
+                                            <p className="text-lg font-bold text-emerald-600 dark:text-emerald-400">
+                                                ₹{person.amount.toLocaleString()}
+                                            </p>
+                                            <span className="text-xs text-muted-foreground group-hover:text-primary transition-colors">
+                                                Click to settle
+                                            </span>
+                                        </div>
+                                    </Link>
+                                ))}
+                            </div>
+                        ) : (
+                            <div className="p-8 text-center bg-muted/20 rounded-2xl border border-dashed border-border">
+                                <p className="text-muted-foreground">No one owes you money.</p>
+                            </div>
+                        )}
                     </div>
-                    <div className="bg-white/10 backdrop-blur rounded-xl p-4">
-                        <p className="text-indigo-200 text-xs mb-1">You owe</p>
-                        <p className="text-2xl font-bold text-red-300">₹{totalYouOwe.toLocaleString()}</p>
+
+                    {/* People you owe */}
+                    <div className="space-y-4">
+                        <div className="flex items-center justify-between">
+                            <h3 className="text-lg font-semibold text-foreground flex items-center gap-2">
+                                <ArrowUpRight className="w-5 h-5 text-rose-500" />
+                                You Owe
+                            </h3>
+                        </div>
+                        {peopleYouOwe.length > 0 ? (
+                            <div className="space-y-3">
+                                {peopleYouOwe.map((person, idx) => (
+                                    <Link
+                                        key={idx}
+                                        href={`/?message=Settle with ${person.name}`}
+                                        className="group flex items-center justify-between p-4 bg-card hover:bg-muted/50 border border-border rounded-2xl transition-all duration-200 shadow-sm hover:shadow-md"
+                                    >
+                                        <div className="flex items-center gap-3">
+                                            <div className="w-10 h-10 rounded-full bg-rose-100 dark:bg-rose-900/30 flex items-center justify-center text-rose-600 dark:text-rose-400 font-bold text-sm">
+                                                {person.name.charAt(0)}
+                                            </div>
+                                            <span className="font-medium text-foreground">{person.name}</span>
+                                        </div>
+                                        <div className="text-right">
+                                            <p className="text-lg font-bold text-rose-600 dark:text-rose-400">
+                                                ₹{person.amount.toLocaleString()}
+                                            </p>
+                                            <span className="text-xs text-muted-foreground group-hover:text-primary transition-colors">
+                                                Click to settle
+                                            </span>
+                                        </div>
+                                    </Link>
+                                ))}
+                            </div>
+                        ) : (
+                            <div className="p-8 text-center bg-muted/20 rounded-2xl border border-dashed border-border">
+                                <p className="text-muted-foreground">You are debt free!</p>
+                            </div>
+                        )}
                     </div>
                 </div>
-            </header>
-
-            {/* Content */}
-            <div className="px-4 py-6 md:px-8 space-y-6">
-                {/* People who owe you */}
-                {peopleWhoOweYou.length > 0 && (
-                    <section>
-                        <h2 className="text-sm font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-3">
-                            People who owe you
-                        </h2>
-                        <div className="space-y-2">
-                            {peopleWhoOweYou.map((person, idx) => (
-                                <Link
-                                    key={idx}
-                                    href={`/?message=Settle with ${person.name}`}
-                                    className="flex items-center justify-between p-4 bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-700 hover:border-indigo-300 dark:hover:border-indigo-600 transition-colors"
-                                >
-                                    <div className="flex items-center gap-3">
-                                        <div className="w-10 h-10 rounded-full bg-emerald-100 dark:bg-emerald-900 flex items-center justify-center text-emerald-600 dark:text-emerald-400 font-medium">
-                                            {person.name.charAt(0)}
-                                        </div>
-                                        <div>
-                                            <p className="font-medium text-slate-800 dark:text-white">{person.name}</p>
-                                            <p className="text-xs text-slate-500">owes you</p>
-                                        </div>
-                                    </div>
-                                    <div className="flex items-center gap-2">
-                                        <span className="font-bold text-emerald-600 dark:text-emerald-400">
-                                            ₹{person.amount.toLocaleString()}
-                                        </span>
-                                        <ArrowRightIcon className="w-4 h-4 text-slate-400" />
-                                    </div>
-                                </Link>
-                            ))}
-                        </div>
-                    </section>
-                )}
-
-                {/* People you owe */}
-                {peopleYouOwe.length > 0 && (
-                    <section>
-                        <h2 className="text-sm font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-3">
-                            People you owe
-                        </h2>
-                        <div className="space-y-2">
-                            {peopleYouOwe.map((person, idx) => (
-                                <Link
-                                    key={idx}
-                                    href={`/?message=Settle with ${person.name}`}
-                                    className="flex items-center justify-between p-4 bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-700 hover:border-indigo-300 dark:hover:border-indigo-600 transition-colors"
-                                >
-                                    <div className="flex items-center gap-3">
-                                        <div className="w-10 h-10 rounded-full bg-red-100 dark:bg-red-900 flex items-center justify-center text-red-600 dark:text-red-400 font-medium">
-                                            {person.name.charAt(0)}
-                                        </div>
-                                        <div>
-                                            <p className="font-medium text-slate-800 dark:text-white">{person.name}</p>
-                                            <p className="text-xs text-slate-500">you owe</p>
-                                        </div>
-                                    </div>
-                                    <div className="flex items-center gap-2">
-                                        <span className="font-bold text-red-600 dark:text-red-400">
-                                            ₹{person.amount.toLocaleString()}
-                                        </span>
-                                        <ArrowRightIcon className="w-4 h-4 text-slate-400" />
-                                    </div>
-                                </Link>
-                            ))}
-                        </div>
-                    </section>
-                )}
-
-                {/* All settled state */}
-                {peopleWhoOweYou.length === 0 && peopleYouOwe.length === 0 && !loading && (
-                    <div className="text-center py-12">
-                        <div className="text-6xl mb-4">🎉</div>
-                        <h3 className="text-xl font-semibold text-slate-800 dark:text-white mb-2">
-                            All settled up!
-                        </h3>
-                        <p className="text-slate-500 dark:text-slate-400">
-                            You're square with everyone.
-                        </p>
-                    </div>
-                )}
-
-                {/* Recent Activity */}
-                <section className="mt-6">
-                    <h2 className="text-sm font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-3">
-                        Recent Activity
-                    </h2>
-                    <RecentActivity />
-                </section>
             </div>
-
-            <FloatingAIButton />
-        </div>
-    );
-}
-
-// Recent Activity Component
-function RecentActivity() {
-    const [history, setHistory] = useState<Array<{ type: string; description: string; amount: number; date: string; parties: string[] }>>([]);
-    const [loading, setLoading] = useState(true);
-
-    useEffect(() => {
-        async function fetchHistory() {
-            try {
-                const response = await api.getHistory(10);
-                // Transform backend history to our format
-                if (response.history && response.history.length > 0) {
-                    const transformed = response.history.map((item: Record<string, unknown>) => ({
-                        type: String(item.entry_type || 'expense'),
-                        description: String(item.description || 'Transaction'),
-                        amount: Math.abs(Number(item.amount) || 0),
-                        date: item.timestamp ? new Date(item.timestamp as string).toLocaleDateString() : 'Today',
-                        parties: [] as string[]
-                    }));
-                    setHistory(transformed);
-                }
-            } catch (error) {
-                console.error('Error fetching history:', error);
-            } finally {
-                setLoading(false);
-            }
-        }
-        fetchHistory();
-    }, []);
-
-    if (loading) {
-        return (
-            <div className="text-center py-8 text-slate-400">
-                <div className="animate-pulse">Loading activity...</div>
-            </div>
-        );
-    }
-
-    if (history.length === 0) {
-        return (
-            <div className="text-center py-8 bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-700">
-                <div className="text-4xl mb-2">📋</div>
-                <p className="text-slate-500 dark:text-slate-400">No activity yet</p>
-                <p className="text-sm text-slate-400 dark:text-slate-500 mt-1">
-                    Start by adding an expense in Chat
-                </p>
-            </div>
-        );
-    }
-
-    return (
-        <div className="space-y-2">
-            {history.map((item, idx) => (
-                <div
-                    key={idx}
-                    className="flex items-center gap-3 p-3 bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-700"
-                >
-                    <div className={`w-8 h-8 rounded-full flex items-center justify-center text-sm ${item.type === 'settlement'
-                        ? 'bg-emerald-100 dark:bg-emerald-900 text-emerald-600'
-                        : 'bg-indigo-100 dark:bg-indigo-900 text-indigo-600'
-                        }`}>
-                        {item.type === 'settlement' ? '✓' : '₹'}
-                    </div>
-                    <div className="flex-1 min-w-0">
-                        <p className="text-sm font-medium text-slate-800 dark:text-white truncate">
-                            {item.description}
-                        </p>
-                        <p className="text-xs text-slate-500">{item.date}</p>
-                    </div>
-                    <span className="text-sm font-medium text-slate-700 dark:text-slate-300">
-                        ₹{item.amount.toLocaleString()}
-                    </span>
-                </div>
-            ))}
         </div>
     );
 }

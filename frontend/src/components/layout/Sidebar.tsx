@@ -3,67 +3,78 @@
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import {
-    ChatBubbleLeftRightIcon,
-    HomeIcon,
-    ClipboardDocumentListIcon,
-    UserGroupIcon
-} from '@heroicons/react/24/outline';
-import {
-    ChatBubbleLeftRightIcon as ChatSolid,
-    HomeIcon as HomeSolid,
-    ClipboardDocumentListIcon as ClipboardSolid,
-    UserGroupIcon as UserGroupSolid
-} from '@heroicons/react/24/solid';
+    MessageSquare,
+    LayoutDashboard,
+    Receipt,
+    Users,
+    Settings
+} from 'lucide-react';
+import { cn } from '@/lib/utils';
+import { motion } from 'framer-motion';
 
 const navItems = [
-    { href: '/', label: 'Chat', icon: ChatBubbleLeftRightIcon, activeIcon: ChatSolid },
-    { href: '/dashboard', label: 'Dashboard', icon: HomeIcon, activeIcon: HomeSolid },
-    { href: '/expenses', label: 'Expenses', icon: ClipboardDocumentListIcon, activeIcon: ClipboardSolid },
-    { href: '/groups', label: 'Groups', icon: UserGroupIcon, activeIcon: UserGroupSolid },
+    { href: '/', label: 'Chat', icon: MessageSquare },
+    { href: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
+    { href: '/expenses', label: 'Expenses', icon: Receipt },
+    { href: '/groups', label: 'Groups', icon: Users },
 ];
 
 export default function Sidebar() {
     const pathname = usePathname();
 
     return (
-        <aside className="hidden md:flex flex-col w-64 bg-white dark:bg-slate-900 border-r border-slate-200 dark:border-slate-700 h-screen fixed left-0 top-0">
+        <aside className="hidden md:flex flex-col w-64 h-screen fixed left-0 top-0 border-r border-border bg-background/80 backdrop-blur-xl z-50">
             {/* Logo */}
-            <div className="h-16 flex items-center px-6 border-b border-slate-200 dark:border-slate-700">
-                <span className="text-xl font-bold text-indigo-600 dark:text-indigo-400">💰 SplitAI</span>
+            <div className="h-16 flex items-center px-6 border-b border-border/50">
+                <span className="text-xl font-bold bg-gradient-to-r from-primary to-primary/60 bg-clip-text text-transparent">
+                    SplitAI
+                </span>
             </div>
 
             {/* Navigation */}
-            <nav className="flex-1 py-4 px-3">
+            <nav className="flex-1 py-6 px-3 space-y-1">
                 {navItems.map((item) => {
                     const isActive = pathname === item.href;
-                    const Icon = isActive ? item.activeIcon : item.icon;
+                    const Icon = item.icon;
 
                     return (
                         <Link
                             key={item.href}
                             href={item.href}
-                            className={`flex items-center gap-3 px-4 py-3 rounded-lg mb-1 transition-colors ${isActive
-                                    ? 'bg-indigo-50 dark:bg-indigo-900/30 text-indigo-600 dark:text-indigo-400'
-                                    : 'text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800'
-                                }`}
+                            className={cn(
+                                "group flex items-center gap-3 px-4 py-3 rounded-md text-sm font-medium transition-all duration-200",
+                                isActive
+                                    ? "bg-primary/10 text-primary shadow-sm"
+                                    : "text-muted-foreground hover:bg-muted/50 hover:text-foreground"
+                            )}
                         >
-                            <Icon className="w-5 h-5" />
-                            <span className="font-medium">{item.label}</span>
+                            <Icon className={cn("w-4 h-4", isActive && "text-primary")} />
+                            <span>{item.label}</span>
+                            {isActive && (
+                                <motion.div
+                                    layoutId="sidebar-active"
+                                    className="ml-auto w-1.5 h-1.5 rounded-full bg-primary"
+                                    initial={{ scale: 0 }}
+                                    animate={{ scale: 1 }}
+                                    transition={{ type: "spring", stiffness: 300, damping: 20 }}
+                                />
+                            )}
                         </Link>
                     );
                 })}
             </nav>
 
             {/* Footer */}
-            <div className="p-4 border-t border-slate-200 dark:border-slate-700">
+            <div className="p-4 border-t border-border/50 bg-muted/20">
                 <div className="flex items-center gap-3 px-2">
-                    <div className="w-8 h-8 rounded-full bg-indigo-500 flex items-center justify-center text-white text-sm font-medium">
-                        Y
+                    <div className="w-8 h-8 rounded-full bg-primary flex items-center justify-center text-primary-foreground text-xs font-bold ring-2 ring-background">
+                        YO
                     </div>
                     <div className="flex-1 min-w-0">
-                        <p className="text-sm font-medium text-slate-700 dark:text-slate-200 truncate">You</p>
-                        <p className="text-xs text-slate-500 dark:text-slate-400 truncate">you@example.com</p>
+                        <p className="text-sm font-medium text-foreground truncate">You</p>
+                        <p className="text-xs text-muted-foreground truncate">Premium Plan</p>
                     </div>
+                    <Settings className="w-4 h-4 text-muted-foreground hover:text-foreground cursor-pointer transition-colors" />
                 </div>
             </div>
         </aside>

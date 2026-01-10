@@ -3,49 +3,60 @@
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import {
-    ChatBubbleLeftRightIcon,
-    HomeIcon,
-    ClipboardDocumentListIcon,
-    UserGroupIcon
-} from '@heroicons/react/24/outline';
-import {
-    ChatBubbleLeftRightIcon as ChatSolid,
-    HomeIcon as HomeSolid,
-    ClipboardDocumentListIcon as ClipboardSolid,
-    UserGroupIcon as UserGroupSolid
-} from '@heroicons/react/24/solid';
+    MessageSquare,
+    LayoutDashboard,
+    Receipt,
+    Users
+} from 'lucide-react';
+import { cn } from '@/lib/utils';
+import { motion } from 'framer-motion';
 
 const navItems = [
-    { href: '/', label: 'Chat', icon: ChatBubbleLeftRightIcon, activeIcon: ChatSolid },
-    { href: '/dashboard', label: 'Dashboard', icon: HomeIcon, activeIcon: HomeSolid },
-    { href: '/expenses', label: 'Expenses', icon: ClipboardDocumentListIcon, activeIcon: ClipboardSolid },
-    { href: '/groups', label: 'Groups', icon: UserGroupIcon, activeIcon: UserGroupSolid },
+    { href: '/', label: 'Chat', icon: MessageSquare },
+    { href: '/dashboard', label: 'Overview', icon: LayoutDashboard },
+    { href: '/expenses', label: 'Expenses', icon: Receipt },
+    { href: '/groups', label: 'Groups', icon: Users },
 ];
 
 export default function BottomNav() {
     const pathname = usePathname();
 
     return (
-        <nav className="fixed bottom-0 left-0 right-0 bg-white dark:bg-slate-900 border-t border-slate-200 dark:border-slate-700 z-50 md:hidden">
-            <div className="flex justify-around items-center h-[72px] px-2">
-                {navItems.map((item) => {
-                    const isActive = pathname === item.href;
-                    const Icon = isActive ? item.activeIcon : item.icon;
+        <nav className="fixed bottom-0 left-0 right-0 z-50 md:hidden pb-safe">
+            {/* Gradient Fade for content scrolling under */}
+            <div className="absolute bottom-0 left-0 right-0 h-32 bg-gradient-to-t from-background to-transparent pointer-events-none" />
 
-                    return (
-                        <Link
-                            key={item.href}
-                            href={item.href}
-                            className={`flex flex-col items-center justify-center flex-1 py-2 px-1 rounded-lg transition-colors ${isActive
-                                    ? 'text-indigo-600 dark:text-indigo-400'
-                                    : 'text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200'
-                                }`}
-                        >
-                            <Icon className="w-6 h-6 mb-1" />
-                            <span className="text-xs font-medium">{item.label}</span>
-                        </Link>
-                    );
-                })}
+            {/* Floating Docks */}
+            <div className="relative px-6 pb-6 pt-2">
+                <div className="flex justify-around items-center bg-background/80 backdrop-blur-xl border border-border/50 rounded-2xl shadow-lg p-2 ring-1 ring-black/5 dark:ring-white/10">
+                    {navItems.map((item) => {
+                        const isActive = pathname === item.href;
+                        const Icon = item.icon;
+
+                        return (
+                            <Link
+                                key={item.href}
+                                href={item.href}
+                                className={cn(
+                                    "relative flex flex-col items-center justify-center flex-1 py-3 px-1 rounded-xl transition-all duration-300",
+                                    isActive ? "text-primary" : "text-muted-foreground hover:text-foreground"
+                                )}
+                            >
+                                {isActive && (
+                                    <motion.div
+                                        layoutId="bottom-nav-active"
+                                        className="absolute inset-0 bg-secondary rounded-xl -z-10"
+                                        initial={{ opacity: 0 }}
+                                        animate={{ opacity: 1 }}
+                                        transition={{ type: "spring", stiffness: 300, damping: 25 }}
+                                    />
+                                )}
+                                <Icon className={cn("w-6 h-6 mb-1 transition-transform duration-200", isActive && "scale-110")} />
+                                <span className="text-[10px] font-medium tracking-wide">{item.label}</span>
+                            </Link>
+                        );
+                    })}
+                </div>
             </div>
         </nav>
     );
