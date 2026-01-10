@@ -12,8 +12,8 @@ interface AppShellProps {
     children: React.ReactNode;
 }
 
-// Keep-alive interval: 5 minutes
-const KEEP_ALIVE_INTERVAL = 5 * 60 * 1000;
+// Keep-alive interval: 1 minute
+const KEEP_ALIVE_INTERVAL = 60 * 1000;
 
 export default function AppShell({ children }: AppShellProps) {
     const pathname = usePathname();
