@@ -19,7 +19,7 @@ from termcolor import colored
 # Add parent dir to path to allow importing modules
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from database import engine, AsyncSessionLocal, Base
+from database import engine, async_session as AsyncSessionLocal, Base
 from agents.orchestrator import AgentOrchestrator
 from models import User, Group, Expense, ExpenseSplit, Transaction
 

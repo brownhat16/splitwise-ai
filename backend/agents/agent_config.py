@@ -2,6 +2,7 @@
 
 import os
 import json
+import re
 import httpx
 from typing import Dict, Any, List, Optional
 from dataclasses import dataclass, field
@@ -65,7 +66,13 @@ class BaseAgent:
             )
             response.raise_for_status()
             data = response.json()
-            return data["choices"][0]["message"]["content"]
+            content = data["choices"][0]["message"]["content"]
+            
+            # Remove <think> blocks (common in reasoning models)
+            if content:
+                content = re.sub(r'<think>.*?</think>', '', content, flags=re.DOTALL).strip()
+            
+            return content
         except httpx.HTTPStatusError as e:
             print(f"HTTP error: {e.response.status_code} - {e.response.text}")
             return json.dumps({
@@ -114,6 +121,9 @@ def parse_json_response(response: str) -> Dict[str, Any]:
     
     Handles cases where JSON is wrapped in markdown code blocks.
     """
+    # Remove <think>...</think> blocks (common in reasoning models)
+    response = re.sub(r'<think>.*?</think>', '', response, flags=re.DOTALL).strip()
+
     # Try to find JSON in code blocks
     if "```json" in response:
         start = response.find("```json") + 7
