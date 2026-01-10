@@ -1,18 +1,37 @@
-"""Database configuration with async SQLAlchemy and SQLite."""
+"""Database configuration with async SQLAlchemy. Supports SQLite and PostgreSQL."""
 
 from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine, async_sessionmaker
 from sqlalchemy.orm import DeclarativeBase
 import os
 
-# Database URL - using SQLite for simplicity
-DATABASE_URL = os.getenv("DATABASE_URL", "sqlite+aiosqlite:///./splitwise.db")
+# Database URL - supports both SQLite (local) and PostgreSQL (Neon)
+# Neon provides URLs like: postgresql://user:pass@host/db?sslmode=require
+# For async, we need to convert to: postgresql+asyncpg://...
+raw_url = os.getenv("DATABASE_URL", "sqlite+aiosqlite:///./splitwise.db")
 
-# Create async engine
-engine = create_async_engine(
-    DATABASE_URL,
-    echo=True,  # Set to False in production
-    future=True
-)
+# Handle Neon/PostgreSQL URLs (convert to async driver)
+if raw_url.startswith("postgres://"):
+    # Neon sometimes uses 'postgres://', convert to 'postgresql+asyncpg://'
+    DATABASE_URL = raw_url.replace("postgres://", "postgresql+asyncpg://", 1)
+elif raw_url.startswith("postgresql://"):
+    # Standard PostgreSQL URL, add async driver
+    DATABASE_URL = raw_url.replace("postgresql://", "postgresql+asyncpg://", 1)
+else:
+    # SQLite or already configured
+    DATABASE_URL = raw_url
+
+# Create async engine with appropriate settings
+engine_kwargs = {
+    "echo": os.getenv("DEBUG", "false").lower() == "true",
+    "future": True
+}
+
+# PostgreSQL specific settings
+if "asyncpg" in DATABASE_URL:
+    engine_kwargs["pool_size"] = 5
+    engine_kwargs["max_overflow"] = 10
+
+engine = create_async_engine(DATABASE_URL, **engine_kwargs)
 
 # Create async session factory
 async_session = async_sessionmaker(
@@ -44,3 +63,4 @@ async def get_db() -> AsyncSession:
             raise
         finally:
             await session.close()
+
