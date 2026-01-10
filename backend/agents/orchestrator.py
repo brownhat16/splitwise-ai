@@ -81,6 +81,9 @@ class AgentOrchestrator:
             context = {}
         context["last_expense"] = await self._get_last_expense_context(user_id)
         
+        # Add conversation history for multi-turn context
+        context["conversation_history"] = await self._get_conversation_history(user_id, limit=5)
+        
         # Parse intent
         intent_result = await self.intent_agent.process(message, context)
         
@@ -701,3 +704,23 @@ Just chat naturally and I'll figure out what you need! 💬"""
             "currency": expense.currency,
             "split_type": expense.split_type.value
         }
+    
+    async def _get_conversation_history(self, user_id: int, limit: int = 5) -> List[Dict[str, str]]:
+        """Get recent conversation history for context."""
+        query = select(Message).where(
+            Message.user_id == user_id
+        ).order_by(Message.timestamp.desc()).limit(limit)
+        
+        result = await self.db.execute(query)
+        messages = result.scalars().all()
+        
+        # Reverse to get chronological order
+        history = []
+        for msg in reversed(messages):
+            history.append({
+                "user": msg.content,
+                "assistant": msg.response,
+                "intent": msg.intent
+            })
+        
+        return history

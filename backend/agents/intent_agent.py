@@ -181,6 +181,18 @@ Now parse the user's message. Be flexible and make your best guess:"""
         # Start with standard messages (system prompt + history)
         messages = super()._build_messages(user_input, context)
         
+        # Inject conversation history if available
+        if context and context.get("conversation_history"):
+            history = context["conversation_history"]
+            history_str = "CONVERSATION HISTORY (recent messages):\n"
+            for turn in history[-3:]:  # Last 3 turns
+                history_str += f"User: {turn.get('user', '')}\n"
+                history_str += f"Assistant: {turn.get('assistant', '')} (intent: {turn.get('intent', 'unknown')})\n\n"
+            
+            history_str += "Use this history to understand follow-up messages. If the user's current message relates to a previous message (e.g., providing emails after being asked), consider the full context."
+            
+            messages.insert(-1, {"role": "system", "content": history_str})
+        
         # Inject last expense context if available
         if context and context.get("last_expense"):
             le = context["last_expense"]
