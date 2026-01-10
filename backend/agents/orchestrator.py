@@ -55,6 +55,7 @@ class AgentOrchestrator:
             "reminder": self._handle_reminder,
             "undo": self._handle_undo,
             "explain": self._handle_explain,
+            "check_invite_status": self._handle_check_invite_status,
             "help": self._handle_help,
             "provide_emails": self._handle_provide_emails,
             "unclear": self._handle_unclear,
@@ -149,18 +150,41 @@ class AgentOrchestrator:
             if name.lower() in ["me", "i", user.name.lower()]:
                 pid = user_id
             else:
-                # Check if user exists
-                existing_user = await self._get_or_create_user_by_name(name, create_if_missing=False)
-                if existing_user:
-                    pid = existing_user
-                elif name in pending_emails:
-                    # User provided email in follow-up, create invite
-                    email = pending_emails[name]
-                    pid = await self._create_invite_and_placeholder(user_id, name, email)
+                # Check if name contains an email (e.g., "bob@example.com" or "Bob: bob@example.com")
+                import re
+                email_match = re.search(r'[\w\.-]+@[\w\.-]+\.\w+', name)
+                
+                if email_match:
+                    # Name contains email, extract and use it
+                    email = email_match.group()
+                    clean_name = re.sub(r'[\w\.-]+@[\w\.-]+\.\w+', '', name).strip(' :,-')
+                    if not clean_name:
+                        clean_name = email.split('@')[0].capitalize()
+                    
+                    # Check if invite already exists for this email
+                    existing = await self._get_user_by_email(email)
+                    if existing:
+                        pid = existing.id
+                    else:
+                        pid = await self._create_invite_and_placeholder(user_id, clean_name, email)
                 else:
-                    # Unknown user, need email clarification
-                    unknown_participants.append(name)
-                    continue
+                    # Check if user exists by name
+                    existing_user = await self._get_or_create_user_by_name(name, create_if_missing=False)
+                    if existing_user:
+                        pid = existing_user
+                    elif name in pending_emails:
+                        # User provided email in follow-up, create invite
+                        email = pending_emails[name]
+                        pid = await self._create_invite_and_placeholder(user_id, name, email)
+                    else:
+                        # Check if a placeholder already exists for this name from a previous invite
+                        existing_placeholder = await self._get_placeholder_by_name(name)
+                        if existing_placeholder:
+                            pid = existing_placeholder.id
+                        else:
+                            # Unknown user, need email clarification
+                            unknown_participants.append(name)
+                            continue
             
             participant_ids.append(pid)
             p_user = await self._get_user(pid)
@@ -613,6 +637,67 @@ I track who owes whom. If you paid for dinner and split it with friends, they ow
             "success": True
         }
     
+    async def _handle_check_invite_status(self, user_id: int, intent: Dict,
+                                          context: Dict = None) -> Dict[str, Any]:
+        """Check invite status for one or all invited users."""
+        participants = intent.get("participants", [])
+        
+        # Query pending invites for this user
+        query = select(Invite).where(Invite.inviter_id == user_id)
+        
+        if participants:
+            # Check specific person
+            name = participants[0]
+            query = query.where(Invite.invitee_name.ilike(f"%{name}%"))
+        
+        result = await self.db.execute(query)
+        invites = result.scalars().all()
+        
+        if not invites:
+            if participants:
+                # Check if the user actually exists (not a placeholder)
+                existing = await self._get_or_create_user_by_name(participants[0], create_if_missing=False)
+                if existing:
+                    user = await self._get_user(existing)
+                    if user and user.is_active:
+                        return {
+                            "response": f"✅ **{participants[0]}** is already on the app! No invite needed.",
+                            "success": True
+                        }
+            return {
+                "response": "You don't have any pending invites.",
+                "success": True
+            }
+        
+        # Build status report
+        status_lines = []
+        for invite in invites:
+            if invite.status == InviteStatus.PENDING:
+                status_lines.append(f"📤 **{invite.invitee_name}** ({invite.invitee_email}): Invite sent, not joined yet")
+            elif invite.status == InviteStatus.ACCEPTED:
+                status_lines.append(f"✅ **{invite.invitee_name}**: Joined!")
+            elif invite.status == InviteStatus.EXPIRED:
+                status_lines.append(f"⏰ **{invite.invitee_name}**: Invite expired")
+        
+        if participants and len(invites) == 1:
+            invite = invites[0]
+            if invite.status == InviteStatus.ACCEPTED:
+                return {
+                    "response": f"✅ Yes, **{invite.invitee_name}** has joined! Their balances are now active.",
+                    "success": True
+                }
+            else:
+                return {
+                    "response": f"📤 **{invite.invitee_name}** hasn't joined yet. I've sent them an invite at {invite.invitee_email}.",
+                    "success": True
+                }
+        
+        status_report = "\n".join(status_lines)
+        return {
+            "response": f"**Invite Status:**\n{status_report}",
+            "success": True
+        }
+    
     async def _handle_provide_emails(self, user_id: int, intent: Dict,
                                      context: Dict = None) -> Dict[str, Any]:
         """Handle email provision for pending invites."""
@@ -740,6 +825,21 @@ I track who owes whom. If you paid for dinner and split it with friends, they ow
         result = await self.db.execute(query)
         users = result.scalars().all()
         return [{"id": u.id, "name": u.name} for u in users]
+    
+    async def _get_user_by_email(self, email: str) -> Optional[User]:
+        """Get user by email address."""
+        query = select(User).where(User.email == email.lower())
+        result = await self.db.execute(query)
+        return result.scalar_one_or_none()
+    
+    async def _get_placeholder_by_name(self, name: str) -> Optional[User]:
+        """Get placeholder user by name (checks users with is_active=False)."""
+        query = select(User).where(
+            User.name.ilike(f"%{name}%"),
+            User.is_active == False
+        )
+        result = await self.db.execute(query)
+        return result.scalar_one_or_none()
     
     async def _store_message(self, user_id: int, content: str, response: str,
                               intent: str, entities: str):

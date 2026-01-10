@@ -60,9 +60,10 @@ INTENT TYPES:
 7. "reminder" - Setting payment reminders
 8. "undo" - Undoing last action
 9. "explain" - Explain the last action, how something works, or breakdown details
-10. "help" - Asking for help OR greeting (hello, hi, hey)
-11. "provide_emails" - User is providing email addresses (response to invite prompt)
-12. "unclear" - ONLY use this if you truly cannot guess the intent
+10. "check_invite_status" - Check if someone has joined, invite status, pending invites
+11. "help" - Asking for help OR greeting (hello, hi, hey)
+12. "provide_emails" - User is providing email addresses (response to invite prompt)
+13. "unclear" - ONLY use this if you truly cannot guess the intent
 
 EMAIL RESPONSE PATTERNS:
 - If input contains email addresses (format: xxx@xxx.xxx), treat as "provide_emails" intent
@@ -181,6 +182,21 @@ Output: {{"intent": "explain", "clarification_needed": false, "confidence": 0.9}
 
 Input: "Break it down"
 Output: {{"intent": "explain", "clarification_needed": false, "confidence": 0.85}}
+
+Input: "Did Bob join?"
+Output: {{"intent": "check_invite_status", "participants": ["Bob"], "clarification_needed": false, "confidence": 0.95}}
+
+Input: "Show invite status"
+Output: {{"intent": "check_invite_status", "clarification_needed": false, "confidence": 0.95}}
+
+Input: "Has Bob signed up?"
+Output: {{"intent": "check_invite_status", "participants": ["Bob"], "clarification_needed": false, "confidence": 0.9}}
+
+Input: "Is Bob notified already?"
+Output: {{"intent": "check_invite_status", "participants": ["Bob"], "clarification_needed": false, "confidence": 0.9}}
+
+Input: "What happens if Bob never joins?"
+Output: {{"intent": "explain", "topic": "invite_persistence", "clarification_needed": false, "confidence": 0.9}}
 
 Now parse the user's message. Be flexible and make your best guess:"""
 
