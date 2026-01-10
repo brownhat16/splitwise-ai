@@ -100,6 +100,12 @@ Output: {{"intent": "add_expense", "amount": 300, "currency": "INR", "participan
 Input: "Split 1200 dinner with Amit and Sarah"
 Output: {{"intent": "add_expense", "amount": 1200, "currency": "INR", "participants": ["me", "Amit", "Sarah"], "payer": "me", "split_type": "equal", "description": "dinner", "clarification_needed": false, "confidence": 0.95}}
 
+Input: "split 500 between me Aneesh and mannu"
+Output: {{"intent": "add_expense", "amount": 500, "currency": "INR", "participants": ["me", "Aneesh", "mannu"], "payer": "me", "split_type": "equal", "description": "expense", "clarification_needed": false, "confidence": 0.95}}
+
+Input: "divide 1000 among me Raj and Simran"
+Output: {{"intent": "add_expense", "amount": 1000, "currency": "INR", "participants": ["me", "Raj", "Simran"], "payer": "me", "split_type": "equal", "description": "expense", "clarification_needed": false, "confidence": 0.95}}
+
 Input: "Who owes me money?"
 Output: {{"intent": "check_balance", "query_type": "owed_to_me", "clarification_needed": false, "confidence": 0.95}}
 
