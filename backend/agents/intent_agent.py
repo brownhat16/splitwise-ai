@@ -60,7 +60,13 @@ INTENT TYPES:
 7. "reminder" - Setting payment reminders
 8. "undo" - Undoing last action
 9. "help" - Asking for help OR greeting (hello, hi, hey)
-10. "unclear" - ONLY use this if you truly cannot guess the intent
+10. "provide_emails" - User is providing email addresses (response to invite prompt)
+11. "unclear" - ONLY use this if you truly cannot guess the intent
+
+EMAIL RESPONSE PATTERNS:
+- If input contains email addresses (format: xxx@xxx.xxx), treat as "provide_emails" intent
+- Formats: "name@email.com", "Name: name@email.com", "Name - name@email.com"
+- Extract name-email pairs from the input
 
 GREETINGS & SMALL TALK:
 - "hello", "hi", "hey", "sup", "yo" → help (so AI can respond with what it can do)
@@ -153,6 +159,15 @@ Output: {{"intent": "help", "clarification_needed": false, "confidence": 0.95}}
 
 Input: "What can you do"
 Output: {{"intent": "help", "clarification_needed": false, "confidence": 0.9}}
+
+Input: "aneesh@gmail.com and mannu@gmail.com"
+Output: {{"intent": "provide_emails", "email_data": {{"Aneesh": "aneesh@gmail.com", "Mannu": "mannu@gmail.com"}}, "clarification_needed": false, "confidence": 0.95}}
+
+Input: "Aneesh: aneesh@example.com, Mannu: mannu@test.com"
+Output: {{"intent": "provide_emails", "email_data": {{"Aneesh": "aneesh@example.com", "Mannu": "mannu@test.com"}}, "clarification_needed": false, "confidence": 0.95}}
+
+Input: "bob@email.com"
+Output: {{"intent": "provide_emails", "email_data": {{"Bob": "bob@email.com"}}, "clarification_needed": false, "confidence": 0.9}}
 
 Now parse the user's message. Be flexible and make your best guess:"""
 

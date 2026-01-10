@@ -55,6 +55,7 @@ class AgentOrchestrator:
             "reminder": self._handle_reminder,
             "undo": self._handle_undo,
             "help": self._handle_help,
+            "provide_emails": self._handle_provide_emails,
             "unclear": self._handle_unclear,
         }
     
@@ -554,6 +555,38 @@ Just chat naturally and I'll figure out what you need! 💬"""
         return {
             "response": help_text,
             "success": True
+        }
+    
+    async def _handle_provide_emails(self, user_id: int, intent: Dict,
+                                     context: Dict = None) -> Dict[str, Any]:
+        """Handle email provision for pending invites."""
+        email_data = intent.get("email_data", {})
+        
+        if not email_data:
+            return {
+                "response": "I couldn't parse the email addresses. Please provide them in format: 'Name: email@example.com'",
+                "needs_clarification": True,
+                "success": False
+            }
+        
+        # Create invites for each email provided
+        created_invites = []
+        for name, email in email_data.items():
+            # Create placeholder user and invite
+            placeholder_id = await self._create_invite_and_placeholder(
+                inviter_id=user_id,
+                invitee_name=name,
+                invitee_email=email
+            )
+            created_invites.append(f"{name} ({email})")
+        
+        await self.db.commit()
+        
+        invites_list = ", ".join(created_invites)
+        return {
+            "response": f"Got it! I've invited {invites_list}. They'll be linked automatically when they sign up. Now, what was the expense you wanted to add?",
+            "success": True,
+            "invites_created": list(email_data.keys())
         }
     
     async def _handle_unclear(self, user_id: int, intent: Dict,
