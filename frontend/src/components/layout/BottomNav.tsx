@@ -21,6 +21,8 @@ const navItems = [
 export default function BottomNav() {
     const pathname = usePathname();
 
+    if (['/login', '/register'].includes(pathname)) return null;
+
     return (
         <nav className="fixed bottom-0 left-0 right-0 z-50 md:hidden pb-safe">
             {/* Gradient Fade for content scrolling under */}

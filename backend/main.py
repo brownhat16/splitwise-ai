@@ -14,7 +14,7 @@ from sqlalchemy import select
 from models import User, Group, Expense
 from agents import AgentOrchestrator, AgentConfig
 from ledger import LedgerManager
-
+from auth import router as auth_router
 
 # Pydantic models for API
 class ChatRequest(BaseModel):
@@ -104,6 +104,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+app.include_router(auth_router)
 
 # Dependency to get database session
 async def get_session():
@@ -124,29 +125,17 @@ async def health_check():
 
 # ============== CHAT ENDPOINTS ==============
 
-@app.post("/chat/{user_id}", response_model=ChatResponse)
-async def chat(user_id: int, request: ChatRequest, 
-               db: AsyncSession = Depends(get_session)):
+from auth import get_current_user
+
+@app.post("/chat", response_model=ChatResponse)
+async def chat(request: ChatRequest, 
+               db: AsyncSession = Depends(get_session),
+               current_user: User = Depends(get_current_user)):
     """
     Main chat endpoint for natural language interactions.
-    
-    Send any expense-related message and the AI will understand and process it.
-    
-    Examples:
-    - "Split ₹1200 dinner with Amit and Sarah"
-    - "Who owes me money?"
-    - "Settle with Rahul"
+    Requires Authentication.
     """
-    # Check if user exists, create if not
-    user_query = select(User).where(User.id == user_id)
-    result = await db.execute(user_query)
-    user = result.scalar_one_or_none()
-    
-    if not user:
-        # Create a default user
-        user = User(id=user_id, name=f"User {user_id}")
-        db.add(user)
-        await db.flush()
+    user_id = current_user.id
     
     # Create orchestrator and process message
     orchestrator = AgentOrchestrator(db)
@@ -169,6 +158,18 @@ async def chat(user_id: int, request: ChatRequest,
 
 
 # ============== USER ENDPOINTS ==============
+
+from auth import get_current_admin
+
+@app.get("/users", response_model=List[UserResponse])
+async def get_users(skip: int = 0, limit: int = 100, 
+                   db: AsyncSession = Depends(get_session),
+                   current_user: User = Depends(get_current_admin)):
+    """Get all users (Admin only)."""
+    query = select(User).offset(skip).limit(limit)
+    result = await db.execute(query)
+    users = result.scalars().all()
+    return users
 
 @app.post("/users", response_model=UserResponse)
 async def create_user(user: UserCreate, db: AsyncSession = Depends(get_session)):

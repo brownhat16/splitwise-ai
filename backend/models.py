@@ -24,6 +24,7 @@ group_members = Table(
 )
 
 
+
 class User(Base):
     """User model - represents a person in the system."""
     __tablename__ = "users"
@@ -32,6 +33,9 @@ class User(Base):
     name = Column(String(100), nullable=False)
     phone = Column(String(20), unique=True, nullable=True)
     email = Column(String(100), unique=True, nullable=True)
+    hashed_password = Column(String(255), nullable=True) # [NEW] For auth
+    role = Column(String(20), default="user") # [NEW] "admin" or "user"
+    is_active = Column(Boolean, default=True) # [NEW] Soft delete/ban
     created_at = Column(DateTime, default=datetime.utcnow)
     
     # Relationships
@@ -41,7 +45,7 @@ class User(Base):
     messages = relationship("Message", back_populates="user")
     
     def __repr__(self):
-        return f"<User(id={self.id}, name='{self.name}')>"
+        return f"<User(id={self.id}, name='{self.name}', role='{self.role}')>"
 
 
 class Group(Base):
