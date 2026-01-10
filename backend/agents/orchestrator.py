@@ -307,24 +307,50 @@ class AgentOrchestrator:
                                      context: Dict = None) -> Dict[str, Any]:
         """Handle balance check requests."""
         query_type = intent.get("query_type", "overall")
-        specific_user = intent.get("participants", [None])[0] if intent.get("participants") else None
         
-        if specific_user:
-            # Balance with specific user
-            other_id = await self._get_or_create_user_by_name(specific_user)
-            balance = await self.ledger_manager.get_balance_between_users(user_id, other_id)
-            other_user = await self._get_user(other_id)
-            other_name = other_user.name if other_user else specific_user
-            
-            from reconciliation import explain_balance
-            response = explain_balance(balance, other_name)
-        else:
+        # Ensure participants is a list
+        participants = intent.get("participants", [])
+        if participants and not isinstance(participants, list):
+            participants = [participants]
+        
+        if not participants:
             # Overall balance summary
             summary = await self.ledger_manager.get_user_summary(user_id)
             response = await self.ledger_agent.explain_balance(summary)
+            return {
+                "response": response,
+                "success": True
+            }
+        
+        # Check balances for specific participants
+        responses = []
+        for name in participants:
+            if not name or name.lower() in ["me", "i", "myself"]:
+                continue
+            
+            # Find the user (including placeholders)
+            other_id = await self._get_or_create_user_by_name(name)
+            
+            # 1. Check direct balance with asking user
+            balance = await self.ledger_manager.get_balance_between_users(user_id, other_id)
+            
+            from reconciliation import explain_balance
+            other_user = await self._get_user(other_id)
+            other_name = other_user.name if other_user else name
+            
+            # 2. Check if specific user has other debts (global summary)
+            # Useful for "How much does Bob owe?" queries
+            other_summary = await self.ledger_manager.get_user_summary(other_id)
+            
+            if other_summary['net_balance'] != 0 and abs(balance) < 0.01:
+                # If direct balance is zero but they have other debts, show global summary
+                bal_resp = await self.ledger_agent.explain_balance(other_summary)
+                responses.append(f"**{other_name}'s Overall Status:**\n{bal_resp}")
+            else:
+                responses.append(explain_balance(balance, other_name))
         
         return {
-            "response": response,
+            "response": "\n\n".join(responses) if responses else "You are all settled up with them!",
             "success": True
         }
     
@@ -830,14 +856,26 @@ I track who owes whom. If you paid for dinner and split it with friends, they ow
         created_invites = []
         invited_names = []
         for name, email in email_data.items():
-            # Create placeholder user and invite
-            placeholder_id = await self._create_invite_and_placeholder(
-                inviter_id=user_id,
-                invitee_name=name,
-                invitee_email=email
-            )
-            created_invites.append(f"{name} ({email})")
-            invited_names.append(name)
+            
+            # Check for existing user/placeholder
+            existing_id = await self._get_user_id_by_email_or_invite(email)
+            
+            if existing_id:
+                # Reuse existing user/placeholder
+                existing_user = await self._get_user(existing_id)
+                used_name = existing_user.name if existing_user else name
+                created_invites.append(f"{used_name} (already exists)")
+                invited_names.append(used_name)
+                # We don't create a new invite/placeholder, we just assume the user means this existing person
+            else:
+                # Create placeholder user and invite
+                placeholder_id = await self._create_invite_and_placeholder(
+                    inviter_id=user_id,
+                    invitee_name=name,
+                    invitee_email=email
+                )
+                created_invites.append(f"{name} ({email})")
+                invited_names.append(name)
         
         await self.db.commit()
         
@@ -856,17 +894,39 @@ I track who owes whom. If you paid for dinner and split it with friends, they ow
         if pending_expense:
             # The invited users now exist, so we can suggest continuing
             return {
-                "response": f"✅ Invited {invites_list}. They'll auto-link when they sign up.\n\nPlease repeat your expense request now — those names will work!",
+                "response": f"✅ Invited/Found {invites_list}. They'll be linked if they sign up.\n\nPlease repeat your expense request now — those names/emails will work!",
                 "success": True,
                 "invites_created": invited_names,
                 "hint": "Users can now repeat their original expense request"
             }
         
         return {
-            "response": f"Got it! I've invited {invites_list}. They'll be linked automatically when they sign up. What expense would you like to add?",
+            "response": f"Got it! I've handled invites for {invites_list}. They'll be linked automatically when they sign up. What expense would you like to add?",
             "success": True,
             "invites_created": invited_names
         }
+
+    async def _get_user_id_by_email_or_invite(self, email: str) -> Optional[int]:
+        """Get user ID by email, checking both registered users and pending invites."""
+        email = email.lower()
+        
+        # 1. Check registered users
+        user = await self._get_user_by_email(email)
+        if user:
+            return user.id
+            
+        # 2. Check pending invites
+        query = select(Invite).where(
+            Invite.invitee_email == email,
+            Invite.status == InviteStatus.PENDING
+        )
+        result = await self.db.execute(query)
+        invite = result.scalars().first()
+        
+        if invite and invite.placeholder_user_id:
+            return invite.placeholder_user_id
+            
+        return None
     
     async def _handle_unclear(self, user_id: int, intent: Dict,
                                context: Dict = None) -> Dict[str, Any]:
