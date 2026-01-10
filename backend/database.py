@@ -3,22 +3,23 @@
 from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine, async_sessionmaker
 from sqlalchemy.orm import DeclarativeBase
 import os
+import ssl
 
 # Database URL - supports both SQLite (local) and PostgreSQL (Neon)
-# Neon provides URLs like: postgresql://user:pass@host/db?sslmode=require
-# For async, we need to convert to: postgresql+asyncpg://...
 raw_url = os.getenv("DATABASE_URL", "sqlite+aiosqlite:///./splitwise.db")
 
 # Handle Neon/PostgreSQL URLs (convert to async driver)
 if raw_url.startswith("postgres://"):
-    # Neon sometimes uses 'postgres://', convert to 'postgresql+asyncpg://'
     DATABASE_URL = raw_url.replace("postgres://", "postgresql+asyncpg://", 1)
 elif raw_url.startswith("postgresql://"):
-    # Standard PostgreSQL URL, add async driver
     DATABASE_URL = raw_url.replace("postgresql://", "postgresql+asyncpg://", 1)
 else:
-    # SQLite or already configured
     DATABASE_URL = raw_url
+
+# Remove sslmode from URL (asyncpg uses 'ssl' parameter instead)
+# We'll pass ssl context via connect_args
+if "sslmode=require" in DATABASE_URL:
+    DATABASE_URL = DATABASE_URL.replace("?sslmode=require", "").replace("&sslmode=require", "")
 
 # Create async engine with appropriate settings
 engine_kwargs = {
@@ -30,6 +31,8 @@ engine_kwargs = {
 if "asyncpg" in DATABASE_URL:
     engine_kwargs["pool_size"] = 5
     engine_kwargs["max_overflow"] = 10
+    # asyncpg requires ssl context, not sslmode string
+    engine_kwargs["connect_args"] = {"ssl": "require"}
 
 engine = create_async_engine(DATABASE_URL, **engine_kwargs)
 
