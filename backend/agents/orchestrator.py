@@ -574,6 +574,7 @@ Just chat naturally and I'll figure out what you need! 💬"""
         
         # Create invites for each email provided
         created_invites = []
+        invited_names = []
         for name, email in email_data.items():
             # Create placeholder user and invite
             placeholder_id = await self._create_invite_and_placeholder(
@@ -582,14 +583,35 @@ Just chat naturally and I'll figure out what you need! 💬"""
                 invitee_email=email
             )
             created_invites.append(f"{name} ({email})")
+            invited_names.append(name)
         
         await self.db.commit()
         
+        # Look for pending expense in conversation history
+        pending_expense = None
+        if context and context.get("conversation_history"):
+            for turn in reversed(context["conversation_history"]):
+                if turn.get("intent") == "add_expense":
+                    # Found a recent add_expense that needed clarification
+                    pending_expense = turn
+                    break
+        
         invites_list = ", ".join(created_invites)
+        
+        # If we found a pending expense, try to re-process it with the new invited users
+        if pending_expense:
+            # The invited users now exist, so we can suggest continuing
+            return {
+                "response": f"✅ Invited {invites_list}. They'll auto-link when they sign up.\n\nPlease repeat your expense request now — those names will work!",
+                "success": True,
+                "invites_created": invited_names,
+                "hint": "Users can now repeat their original expense request"
+            }
+        
         return {
-            "response": f"Got it! I've invited {invites_list}. They'll be linked automatically when they sign up. Now, what was the expense you wanted to add?",
+            "response": f"Got it! I've invited {invites_list}. They'll be linked automatically when they sign up. What expense would you like to add?",
             "success": True,
-            "invites_created": list(email_data.keys())
+            "invites_created": invited_names
         }
     
     async def _handle_unclear(self, user_id: int, intent: Dict,
