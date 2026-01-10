@@ -54,6 +54,7 @@ class AgentOrchestrator:
             "query": self._handle_query,
             "reminder": self._handle_reminder,
             "undo": self._handle_undo,
+            "explain": self._handle_explain,
             "help": self._handle_help,
             "provide_emails": self._handle_provide_emails,
             "unclear": self._handle_unclear,
@@ -557,6 +558,58 @@ Just chat naturally and I'll figure out what you need! 💬"""
         
         return {
             "response": help_text,
+            "success": True
+        }
+    
+    async def _handle_explain(self, user_id: int, intent: Dict,
+                               context: Dict = None) -> Dict[str, Any]:
+        """Explain the last action based on conversation history."""
+        # Look at conversation history for context
+        if context and context.get("conversation_history"):
+            history = context["conversation_history"]
+            
+            # Find the most recent meaningful action
+            for turn in reversed(history):
+                last_intent = turn.get("intent", "")
+                last_response = turn.get("assistant", "")
+                
+                if last_intent == "add_expense" and "successfully" in last_response.lower():
+                    # Explain the expense split
+                    explanation = f"""**Here's what happened:**
+
+The expense was split using the **equal split** method, which means:
+- The total amount is divided equally among all participants
+- Each person pays the same share
+- Any remainder (due to rounding) goes to the payer
+
+**How splits work in Splitwise:**
+- **Equal**: Total ÷ Number of people
+- **Percentage**: Each person pays their specified %
+- **Shares**: Like "2 parts to A, 1 part to B"
+- **Unequal**: Exact amounts for each person
+
+The transaction is recorded in the ledger, and balances are updated accordingly. 📊"""
+                    return {
+                        "response": explanation,
+                        "success": True
+                    }
+                elif last_intent == "settle":
+                    return {
+                        "response": "The settlement cleared the debt between you and the other person. Their balance with you is now updated.",
+                        "success": True
+                    }
+            
+        # Generic explanation if no specific context
+        return {
+            "response": """I can explain how things work! Here's a quick overview:
+
+**Expense Splitting:**
+When you add an expense, I calculate each person's share based on the split type (equal, percentage, or custom amounts).
+
+**Balances:**
+I track who owes whom. If you paid for dinner and split it with friends, they owe you their share.
+
+**What would you like me to explain specifically?**""",
             "success": True
         }
     

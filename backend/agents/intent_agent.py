@@ -59,9 +59,10 @@ INTENT TYPES:
 6. "query" - General questions about past expenses
 7. "reminder" - Setting payment reminders
 8. "undo" - Undoing last action
-9. "help" - Asking for help OR greeting (hello, hi, hey)
-10. "provide_emails" - User is providing email addresses (response to invite prompt)
-11. "unclear" - ONLY use this if you truly cannot guess the intent
+9. "explain" - Explain the last action, how something works, or breakdown details
+10. "help" - Asking for help OR greeting (hello, hi, hey)
+11. "provide_emails" - User is providing email addresses (response to invite prompt)
+12. "unclear" - ONLY use this if you truly cannot guess the intent
 
 EMAIL RESPONSE PATTERNS:
 - If input contains email addresses (format: xxx@xxx.xxx), treat as "provide_emails" intent
@@ -168,6 +169,18 @@ Output: {{"intent": "provide_emails", "email_data": {{"Aneesh": "aneesh@example.
 
 Input: "bob@email.com"
 Output: {{"intent": "provide_emails", "email_data": {{"Bob": "bob@email.com"}}, "clarification_needed": false, "confidence": 0.9}}
+
+Input: "Explain"
+Output: {{"intent": "explain", "clarification_needed": false, "confidence": 0.95}}
+
+Input: "What just happened?"
+Output: {{"intent": "explain", "clarification_needed": false, "confidence": 0.9}}
+
+Input: "How was that calculated?"
+Output: {{"intent": "explain", "clarification_needed": false, "confidence": 0.9}}
+
+Input: "Break it down"
+Output: {{"intent": "explain", "clarification_needed": false, "confidence": 0.85}}
 
 Now parse the user's message. Be flexible and make your best guess:"""
 
