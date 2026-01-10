@@ -3,6 +3,7 @@
 import { usePathname } from 'next/navigation';
 import Sidebar from '@/components/layout/Sidebar';
 import BottomNav from '@/components/layout/BottomNav';
+import MobileHeader from '@/components/layout/MobileHeader';
 import { cn } from '@/lib/utils';
 
 interface AppShellProps {
@@ -15,11 +16,12 @@ export default function AppShell({ children }: AppShellProps) {
 
     return (
         <>
+            {!isAuthPage && <MobileHeader />}
             {!isAuthPage && <Sidebar />}
 
             <main className={cn(
                 "min-h-screen transition-all duration-200",
-                !isAuthPage && "md:ml-64 pb-[90px] md:pb-0" // Add padding/margin ONLY if not auth
+                !isAuthPage && "md:ml-64 pb-[90px] md:pb-0 pt-16 md:pt-0" // Add top padding for mobile header
             )}>
                 {children}
             </main>
