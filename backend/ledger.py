@@ -238,3 +238,73 @@ class LedgerManager:
             })
         
         return history
+
+    async def remove_split_from_expense(self, expense: Expense, user_id: int) -> bool:
+        """
+        Remove a participant's split from an expense by creating reversal entries.
+        """
+        # Find original entries for this expense and user
+        query = select(LedgerEntry).where(
+            LedgerEntry.expense_id == expense.id,
+            (LedgerEntry.user_id == user_id) | (LedgerEntry.counterparty_id == user_id)
+        )
+        result = await self.db.execute(query)
+        original_entries = result.scalars().all()
+        
+        if not original_entries:
+            return False
+        
+        reversal_entries = []
+        for entry in original_entries:
+            reversal = LedgerEntry(
+                user_id=entry.user_id,
+                counterparty_id=entry.counterparty_id,
+                amount=-entry.amount,  # Invert amount
+                expense_id=expense.id,
+                description=f"Removed from: {entry.description}",
+                timestamp=datetime.utcnow()
+            )
+            reversal_entries.append(reversal)
+        
+        self.db.add_all(reversal_entries)
+        await self.db.flush()
+        return True
+    
+    async def update_split_amount(self, expense: Expense, user_id: int, 
+                                   old_amount: float, new_amount: float) -> bool:
+        """
+        Update a split amount by creating adjustment entries.
+        """
+        adjustment = new_amount - old_amount
+        
+        if adjustment == 0:
+            return True  # No change needed
+        
+        payer_id = expense.payer_id
+        
+        if user_id == payer_id:
+            return True  # Payer's share doesn't create ledger entries
+        
+        # Adjustment for payer (they are owed more/less)
+        payer_entry = LedgerEntry(
+            user_id=payer_id,
+            counterparty_id=user_id,
+            amount=adjustment,  # Positive if increase, negative if decrease
+            expense_id=expense.id,
+            description=f"Adjustment: {expense.description}",
+            timestamp=datetime.utcnow()
+        )
+        
+        # Adjustment for the ower
+        ower_entry = LedgerEntry(
+            user_id=user_id,
+            counterparty_id=payer_id,
+            amount=-adjustment,  # Opposite of payer
+            expense_id=expense.id,
+            description=f"Adjustment: {expense.description}",
+            timestamp=datetime.utcnow()
+        )
+        
+        self.db.add_all([payer_entry, ower_entry])
+        await self.db.flush()
+        return True

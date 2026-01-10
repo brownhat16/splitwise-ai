@@ -54,6 +54,7 @@ class AgentOrchestrator:
             "query": self._handle_query,
             "reminder": self._handle_reminder,
             "undo": self._handle_undo,
+            "edit_expense": self._handle_edit_expense,
             "explain": self._handle_explain,
             "check_invite_status": self._handle_check_invite_status,
             "help": self._handle_help,
@@ -550,6 +551,121 @@ Provide a helpful, conversational response to their query."""
         return {
             "response": f"Done! I've reversed the expense '{expense_desc}' for ₹{expense_amount:,.2f} and corrected all balances.",
             "success": True
+        }
+    
+    async def _handle_edit_expense(self, user_id: int, intent: Dict,
+                                    context: Dict = None) -> Dict[str, Any]:
+        """Handle expense editing (remove participant, change amount)."""
+        action = intent.get("action", "")
+        
+        # Get the last expense
+        query = select(Expense).where(
+            Expense.payer_id == user_id
+        ).order_by(Expense.created_at.desc()).limit(1)
+        
+        result = await self.db.execute(query)
+        expense = result.scalar_one_or_none()
+        
+        if not expense:
+            return {
+                "response": "I couldn't find a recent expense to edit.",
+                "success": False
+            }
+        
+        if action == "remove_participant":
+            participant_name = intent.get("participant", "")
+            if not participant_name:
+                return {
+                    "response": "Who should I remove from the expense?",
+                    "needs_clarification": True,
+                    "success": False
+                }
+            
+            # Find the participant in expense splits
+            participant_id = await self._get_or_create_user_by_name(participant_name, create_if_missing=False)
+            if not participant_id:
+                return {
+                    "response": f"I don't see {participant_name} in this expense.",
+                    "success": False
+                }
+            
+            # Remove the split for this participant
+            split_query = select(ExpenseSplit).where(
+                ExpenseSplit.expense_id == expense.id,
+                ExpenseSplit.user_id == participant_id
+            )
+            split_result = await self.db.execute(split_query)
+            split = split_result.scalar_one_or_none()
+            
+            if not split:
+                return {
+                    "response": f"{participant_name} wasn't part of this expense.",
+                    "success": False
+                }
+            
+            # Reverse the ledger entry for this split
+            await self.ledger_manager.remove_split_from_expense(expense, participant_id)
+            
+            # Delete the split
+            await self.db.delete(split)
+            
+            # Recalculate remaining splits
+            remaining_splits_query = select(ExpenseSplit).where(ExpenseSplit.expense_id == expense.id)
+            remaining_result = await self.db.execute(remaining_splits_query)
+            remaining_splits = remaining_result.scalars().all()
+            
+            if remaining_splits:
+                new_share = expense.amount / (len(remaining_splits) + 1)  # +1 for payer
+                for s in remaining_splits:
+                    old_amount = s.amount
+                    s.amount = new_share
+                    # Update ledger
+                    await self.ledger_manager.update_split_amount(expense, s.user_id, old_amount, new_share)
+            
+            await self.db.commit()
+            
+            return {
+                "response": f"Done! I've removed {participant_name} from '{expense.description}' and recalculated the split.",
+                "success": True
+            }
+        
+        elif action == "change_amount":
+            new_amount = intent.get("new_amount")
+            if not new_amount:
+                return {
+                    "response": "What's the new amount?",
+                    "needs_clarification": True,
+                    "success": False
+                }
+            
+            old_amount = expense.amount
+            expense.amount = new_amount
+            
+            # Recalculate all splits proportionally
+            splits_query = select(ExpenseSplit).where(ExpenseSplit.expense_id == expense.id)
+            splits_result = await self.db.execute(splits_query)
+            splits = splits_result.scalars().all()
+            
+            ratio = new_amount / old_amount if old_amount > 0 else 1
+            
+            for split in splits:
+                old_split_amount = split.amount
+                new_split_amount = old_split_amount * ratio
+                split.amount = new_split_amount
+                # Update ledger
+                await self.ledger_manager.update_split_amount(expense, split.user_id, old_split_amount, new_split_amount)
+            
+            await self.db.commit()
+            
+            return {
+                "response": f"Done! I've changed the amount from ₹{old_amount:,.0f} to ₹{new_amount:,.0f} and updated all splits proportionally.",
+                "success": True
+            }
+        
+        return {
+            "response": "I'm not sure what to edit. Try 'change amount to X' or 'remove [name] from expense'.",
+            "needs_clarification": True,
+            "success": False
         }
     
     async def _handle_help(self, user_id: int, intent: Dict,

@@ -59,11 +59,12 @@ INTENT TYPES:
 6. "query" - General questions about past expenses
 7. "reminder" - Setting payment reminders
 8. "undo" - Undoing last action
-9. "explain" - Explain the last action, how something works, or breakdown details
-10. "check_invite_status" - Check if someone has joined, invite status, pending invites
-11. "help" - Asking for help OR greeting (hello, hi, hey)
-12. "provide_emails" - User is providing email addresses (response to invite prompt)
-13. "unclear" - ONLY use this if you truly cannot guess the intent
+9. "edit_expense" - Modify last expense: change amount, remove participant, edit description
+10. "explain" - Explain the last action, how something works, or breakdown details
+11. "check_invite_status" - Check if someone has joined, invite status, pending invites
+12. "help" - Asking for help OR greeting (hello, hi, hey)
+13. "provide_emails" - User is providing email addresses (response to invite prompt)
+14. "unclear" - ONLY use this if you truly cannot guess the intent
 
 EMAIL RESPONSE PATTERNS:
 - If input contains email addresses (format: xxx@xxx.xxx), treat as "provide_emails" intent
@@ -155,6 +156,18 @@ Output: {{"intent": "undo", "clarification_needed": false, "confidence": 0.95}}
 
 Input: "Cancel last one"
 Output: {{"intent": "undo", "clarification_needed": false, "confidence": 0.9}}
+
+Input: "Actually Bob didn't eat. Remove him from that dinner."
+Output: {{"intent": "edit_expense", "action": "remove_participant", "participant": "Bob", "clarification_needed": false, "confidence": 0.9}}
+
+Input: "Wait I meant 4k not 5k"
+Output: {{"intent": "edit_expense", "action": "change_amount", "new_amount": 4000, "clarification_needed": false, "confidence": 0.9}}
+
+Input: "Change the amount to 1500"
+Output: {{"intent": "edit_expense", "action": "change_amount", "new_amount": 1500, "clarification_needed": false, "confidence": 0.95}}
+
+Input: "Remove Asha from the last expense"
+Output: {{"intent": "edit_expense", "action": "remove_participant", "participant": "Asha", "clarification_needed": false, "confidence": 0.95}}
 
 Input: "Help"
 Output: {{"intent": "help", "clarification_needed": false, "confidence": 0.95}}
