@@ -1,8 +1,7 @@
 import type { Metadata } from "next";
-import { Inter } from "next/font/google"; // [NEW]
+import { Inter } from "next/font/google";
 import "./globals.css";
-import BottomNav from "@/components/layout/BottomNav";
-import Sidebar from "@/components/layout/Sidebar";
+import AppShell from "@/components/layout/AppShell";
 import { cn } from "@/lib/utils";
 
 const inter = Inter({ subsets: ["latin"] });
@@ -23,16 +22,9 @@ export default function RootLayout({
         "min-h-screen bg-background font-sans antialiased",
         inter.className
       )}>
-        {/* Desktop Sidebar */}
-        <Sidebar />
-
-        {/* Main Content */}
-        <main className="md:ml-64 min-h-screen pb-[72px] md:pb-0">
+        <AppShell>
           {children}
-        </main>
-
-        {/* Mobile Bottom Nav */}
-        <BottomNav />
+        </AppShell>
       </body>
     </html>
   );

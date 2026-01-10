@@ -35,12 +35,9 @@ export default function Sidebar() {
         const storedRole = localStorage.getItem('role'); // We need api to save role too!
         // Wait, api.setAuth saves token/userId. I should update api to save role or decode it.
         // For now, I'll rely on api.login returning role and I'll save it manually here or update api.
-        // Let's assume I update api.setAuth to save role, OR I just save it in localStorage in Login Page.
-        // Quick fix: Update Login/Register page to save role, or just read from token if I could decode it.
-        // Simpler: Just save 'role' in localStorage in Login page.
-        // But for this component, let's just read it.
-        // Actually, I'll read it from api.userId if I fetch user details? No, let's stick to localStorage 'role'.
     }, []);
+
+    // Auth check moved to AppShell
 
     // Hide sidebar on auth pages
     if (['/login', '/register'].includes(pathname)) return null;
