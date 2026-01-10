@@ -55,8 +55,13 @@ INTENT TYPES:
 6. "query" - General questions about past expenses
 7. "reminder" - Setting payment reminders
 8. "undo" - Undoing last action
-9. "help" - Asking for help
+9. "help" - Asking for help OR greeting (hello, hi, hey)
 10. "unclear" - ONLY use this if you truly cannot guess the intent
+
+GREETINGS & SMALL TALK:
+- "hello", "hi", "hey", "sup", "yo" → help (so AI can respond with what it can do)
+- "thanks", "thank you", "okay", "ok" → help (or just acknowledge)
+- "how are you", "who are you" → help
 
 EXTRACT THESE FIELDS:
 - intent: one of the above
