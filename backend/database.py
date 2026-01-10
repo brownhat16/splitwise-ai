@@ -4,9 +4,15 @@ from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine, async_sess
 from sqlalchemy.orm import DeclarativeBase
 import os
 import ssl
+import re
 
 # Database URL - supports both SQLite (local) and PostgreSQL (Neon)
 raw_url = os.getenv("DATABASE_URL", "sqlite+aiosqlite:///./splitwise.db")
+
+# Debug: Print masked URL to logs
+def mask_password(url):
+    return re.sub(r':([^@]+)@', ':***@', url)
+print(f"[DB] Raw DATABASE_URL: {mask_password(raw_url)}")
 
 # Handle Neon/PostgreSQL URLs (convert to async driver)
 if raw_url.startswith("postgres://"):
