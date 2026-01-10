@@ -8,7 +8,8 @@ from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 from database import get_db
-from models import User
+from models import User, Invite, InviteStatus, LedgerEntry, ExpenseSplit
+from sqlalchemy import update
 
 # Config
 SECRET_KEY = "your-secret-key-keep-it-secret" # In production, use env var
@@ -116,6 +117,49 @@ async def register(user: UserCreate, db: AsyncSession = Depends(get_db)):
     db.add(new_user)
     await db.commit()
     await db.refresh(new_user)
+    
+    # === AUTO-LINK PENDING INVITES ===
+    # Find all pending invites with this email
+    invite_query = select(Invite).where(
+        Invite.invitee_email == user.email.lower(),
+        Invite.status == InviteStatus.PENDING
+    )
+    invite_result = await db.execute(invite_query)
+    pending_invites = invite_result.scalars().all()
+    
+    for invite in pending_invites:
+        if invite.placeholder_user_id:
+            placeholder_id = invite.placeholder_user_id
+            
+            # Update all LedgerEntry records
+            await db.execute(
+                update(LedgerEntry)
+                .where(LedgerEntry.debtor_id == placeholder_id)
+                .values(debtor_id=new_user.id)
+            )
+            await db.execute(
+                update(LedgerEntry)
+                .where(LedgerEntry.creditor_id == placeholder_id)
+                .values(creditor_id=new_user.id)
+            )
+            
+            # Update ExpenseSplit records
+            await db.execute(
+                update(ExpenseSplit)
+                .where(ExpenseSplit.user_id == placeholder_id)
+                .values(user_id=new_user.id)
+            )
+            
+            # Delete placeholder user (optional - could keep for audit)
+            placeholder = await db.get(User, placeholder_id)
+            if placeholder:
+                await db.delete(placeholder)
+        
+        # Mark invite as accepted
+        invite.status = InviteStatus.ACCEPTED
+    
+    await db.commit()
+    # === END AUTO-LINK ===
     
     # Generate token
     access_token_expires = timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)

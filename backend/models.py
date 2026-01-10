@@ -15,6 +15,13 @@ class SplitType(enum.Enum):
     SHARES = "shares"
 
 
+class InviteStatus(enum.Enum):
+    """Status of a user invite."""
+    PENDING = "pending"
+    ACCEPTED = "accepted"
+    EXPIRED = "expired"
+
+
 # Association table for group members
 group_members = Table(
     "group_members",
@@ -170,3 +177,26 @@ class Message(Base):
     
     def __repr__(self):
         return f"<Message(id={self.id}, user_id={self.user_id})>"
+
+
+class Invite(Base):
+    """Invite model - tracks pending user invitations."""
+    __tablename__ = "invites"
+    
+    id = Column(Integer, primary_key=True, index=True)
+    inviter_id = Column(Integer, ForeignKey("users.id"), nullable=False)
+    invitee_name = Column(String(100), nullable=False)  # Name as mentioned in chat
+    invitee_email = Column(String(100), nullable=False, index=True)  # For linking on registration
+    expense_id = Column(Integer, ForeignKey("expenses.id"), nullable=True)  # Associated expense
+    placeholder_user_id = Column(Integer, ForeignKey("users.id"), nullable=True)  # Temp user created
+    status = Column(Enum(InviteStatus), default=InviteStatus.PENDING)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    
+    # Relationships
+    inviter = relationship("User", foreign_keys=[inviter_id])
+    expense = relationship("Expense")
+    placeholder_user = relationship("User", foreign_keys=[placeholder_user_id])
+    
+    def __repr__(self):
+        return f"<Invite(id={self.id}, invitee='{self.invitee_name}', status={self.status.value})>"
+

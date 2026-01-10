@@ -13,7 +13,7 @@ from .context_agent import ContextAgent
 from .reconciliation_agent import ReconciliationAgent
 from .notification_agent import NotificationAgent
 
-from models import User, Group, Expense, ExpenseSplit, Transaction, LedgerEntry, Message, SplitType
+from models import User, Group, Expense, ExpenseSplit, Transaction, LedgerEntry, Message, SplitType, Invite, InviteStatus
 from ledger import LedgerManager
 from splitter import ExpenseSplitter, SplitType as SplitterSplitType, format_split_summary
 from reconciliation import DebtReconciler
@@ -135,15 +135,50 @@ class AgentOrchestrator:
         
         participant_ids = []
         user_names = {}
+        unknown_participants = []
+        
+        # Check for email clarification in context (user responded with emails)
+        pending_emails = context.get("pending_invite_emails", {}) if context else {}
         
         for name in participants_names:
             if name.lower() in ["me", "i", user.name.lower()]:
                 pid = user_id
             else:
-                pid = await self._get_or_create_user_by_name(name)
+                # Check if user exists
+                existing_user = await self._get_or_create_user_by_name(name, create_if_missing=False)
+                if existing_user:
+                    pid = existing_user
+                elif name in pending_emails:
+                    # User provided email in follow-up, create invite
+                    email = pending_emails[name]
+                    pid = await self._create_invite_and_placeholder(user_id, name, email)
+                else:
+                    # Unknown user, need email clarification
+                    unknown_participants.append(name)
+                    continue
+            
             participant_ids.append(pid)
             p_user = await self._get_user(pid)
             user_names[pid] = p_user.name if p_user else name
+        
+        # If there are unknown participants, ask for their emails
+        if unknown_participants:
+            names_list = ", ".join(unknown_participants)
+            return {
+                "response": f"I don't recognize {names_list}. Could you provide their email address(es) so I can invite them? For example: '{unknown_participants[0]}: email@example.com'",
+                "needs_clarification": True,
+                "clarification_type": "invite_emails",
+                "unknown_users": unknown_participants,
+                "pending_expense": {
+                    "description": description,
+                    "amount": amount,
+                    "participants": participants_names,
+                    "payer": payer_name,
+                    "split_type": split_type,
+                    "split_details": split_details
+                },
+                "success": False
+            }
         
         # Ensure payer is in participants
         if payer_id not in participant_ids:
@@ -554,11 +589,39 @@ Just chat naturally and I'll figure out what you need! 💬"""
             await self.db.flush()
             return new_user.id
         
-        # Create temporary user
-        new_user = User(name=name)
-        self.db.add(new_user)
+        return None
+    
+    async def _user_exists_by_name(self, name: str) -> bool:
+        """Check if a user exists by name (excluding placeholders without email)."""
+        query = select(User).where(User.name.ilike(name))
+        result = await self.db.execute(query)
+        user = result.scalar_one_or_none()
+        # A "real" user either has an email or a password (i.e., registered)
+        if user and (user.email or user.hashed_password):
+            return True
+        return user is not None  # For now, any user counts
+    
+    async def _create_invite_and_placeholder(self, inviter_id: int, invitee_name: str, 
+                                             invitee_email: str, expense_id: int = None) -> int:
+        """Create an invite record and a placeholder user, returns placeholder user ID."""
+        # Create placeholder user
+        placeholder = User(name=invitee_name)
+        self.db.add(placeholder)
         await self.db.flush()
-        return new_user.id
+        
+        # Create invite record
+        invite = Invite(
+            inviter_id=inviter_id,
+            invitee_name=invitee_name,
+            invitee_email=invitee_email.lower(),
+            expense_id=expense_id,
+            placeholder_user_id=placeholder.id,
+            status=InviteStatus.PENDING
+        )
+        self.db.add(invite)
+        await self.db.flush()
+        
+        return placeholder.id
     
     async def _get_known_users(self) -> List[Dict]:
         """Get all known users."""
