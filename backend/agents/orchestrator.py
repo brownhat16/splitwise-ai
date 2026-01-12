@@ -57,6 +57,7 @@ class AgentOrchestrator:
             "view_group": self._handle_view_group,
             "remove_member": self._handle_remove_member,
             "delete_expense": self._handle_delete_expense,
+            "rename_group": self._handle_rename_group,
             "query": self._handle_query,
             "reminder": self._handle_reminder,
             "undo": self._handle_undo,
@@ -775,6 +776,41 @@ class AgentOrchestrator:
         
         return {
             "response": f"Deleted expense '{expense_desc}' (₹{expense_amount:,.0f}).",
+            "success": True
+        }
+    
+    async def _handle_rename_group(self, user_id: int, intent: Dict,
+                                    context: Dict = None) -> Dict[str, Any]:
+        """Handle renaming a group."""
+        new_name = intent.get("new_name")
+        
+        if not new_name:
+            return {
+                "response": "What would you like to name the group?",
+                "needs_clarification": True,
+                "success": False
+            }
+        
+        # Get most recent group created by user
+        query = select(Group).where(
+            Group.created_by_id == user_id
+        ).order_by(Group.created_at.desc()).limit(1)
+        
+        result = await self.db.execute(query)
+        group = result.scalar_one_or_none()
+        
+        if not group:
+            return {
+                "response": "I couldn't find a group to rename. Please create a group first.",
+                "success": False
+            }
+        
+        old_name = group.name
+        group.name = new_name
+        await self.db.commit()
+        
+        return {
+            "response": f"Renamed '{old_name}' to '{new_name}'!",
             "success": True
         }
     
