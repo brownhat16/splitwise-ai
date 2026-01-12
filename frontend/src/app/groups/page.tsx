@@ -1,11 +1,25 @@
 'use client';
 
+import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { PlusIcon, ChevronRightIcon, UsersIcon } from '@heroicons/react/24/outline';
 import FloatingAIButton from '@/components/layout/FloatingAIButton';
-import { mockGroups, mockBalances } from '@/lib/mock-data';
+import api, { GroupData } from '@/lib/api';
 
 export default function GroupsPage() {
+    const [groups, setGroups] = useState<GroupData[]>([]);
+    const [loading, setLoading] = useState(true);
+
+    useEffect(() => {
+        const fetchGroups = async () => {
+            setLoading(true);
+            const data = await api.getGroups();
+            setGroups(data.groups);
+            setLoading(false);
+        };
+        fetchGroups();
+    }, []);
+
     return (
         <div className="min-h-screen bg-slate-50 dark:bg-slate-950">
             {/* Header */}
@@ -21,13 +35,17 @@ export default function GroupsPage() {
                 </div>
             </header>
 
-            {/* Group List */}
-            <div className="px-4 py-4 space-y-3">
-                {mockGroups.map((group) => {
-                    // Calculate group balance (mock)
-                    const groupBalance = Math.floor(Math.random() * 4000) - 2000;
+            {/* Loading state */}
+            {loading && (
+                <div className="flex justify-center items-center py-20">
+                    <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-600"></div>
+                </div>
+            )}
 
-                    return (
+            {/* Group List */}
+            {!loading && (
+                <div className="px-4 py-4 space-y-3">
+                    {groups.map((group) => (
                         <Link
                             key={group.id}
                             href={`/groups/${group.id}`}
@@ -36,9 +54,10 @@ export default function GroupsPage() {
                             <div className="flex items-center gap-4">
                                 {/* Group Icon */}
                                 <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-indigo-500 to-purple-500 flex items-center justify-center text-white text-xl">
-                                    {group.name === 'Roommates' && '🏠'}
-                                    {group.name === 'Goa Trip' && '🏖️'}
-                                    {group.name === 'Office Lunch' && '🍱'}
+                                    {group.name.toLowerCase().includes('roommate') ? '🏠' :
+                                        group.name.toLowerCase().includes('trip') ? '🏖️' :
+                                            group.name.toLowerCase().includes('lunch') || group.name.toLowerCase().includes('office') ? '🍱' :
+                                                group.name.toLowerCase().includes('family') ? '👨‍👩‍👧‍👦' : '👥'}
                                 </div>
 
                                 {/* Group Details */}
@@ -48,21 +67,8 @@ export default function GroupsPage() {
                                     </p>
                                     <div className="flex items-center gap-2 text-sm text-slate-500 dark:text-slate-400">
                                         <UsersIcon className="w-4 h-4" />
-                                        <span>{group.members.length} members</span>
+                                        <span>{group.member_count} members</span>
                                     </div>
-                                </div>
-
-                                {/* Balance */}
-                                <div className="text-right">
-                                    <p className={`font-bold ${groupBalance >= 0
-                                            ? 'text-emerald-600 dark:text-emerald-400'
-                                            : 'text-red-600 dark:text-red-400'
-                                        }`}>
-                                        {groupBalance >= 0 ? '+' : ''}₹{Math.abs(groupBalance).toLocaleString()}
-                                    </p>
-                                    <p className="text-xs text-slate-500">
-                                        {groupBalance >= 0 ? 'you are owed' : 'you owe'}
-                                    </p>
                                 </div>
 
                                 <ChevronRightIcon className="w-4 h-4 text-slate-400" />
@@ -85,28 +91,28 @@ export default function GroupsPage() {
                                 )}
                             </div>
                         </Link>
-                    );
-                })}
+                    ))}
 
-                {/* Empty state */}
-                {mockGroups.length === 0 && (
-                    <div className="text-center py-12">
-                        <div className="text-6xl mb-4">👥</div>
-                        <h3 className="text-xl font-semibold text-slate-800 dark:text-white mb-2">
-                            No groups yet
-                        </h3>
-                        <p className="text-slate-500 dark:text-slate-400 mb-6">
-                            Create a group to track shared expenses
-                        </p>
-                        <Link
-                            href="/?message=Create a group called Roommates"
-                            className="inline-flex items-center px-6 py-3 bg-indigo-600 text-white font-medium rounded-full hover:bg-indigo-700 transition-colors"
-                        >
-                            Create Group
-                        </Link>
-                    </div>
-                )}
-            </div>
+                    {/* Empty state */}
+                    {groups.length === 0 && (
+                        <div className="text-center py-12">
+                            <div className="text-6xl mb-4">👥</div>
+                            <h3 className="text-xl font-semibold text-slate-800 dark:text-white mb-2">
+                                No groups yet
+                            </h3>
+                            <p className="text-slate-500 dark:text-slate-400 mb-6">
+                                Create a group to track shared expenses
+                            </p>
+                            <Link
+                                href="/?message=Create a group called Roommates"
+                                className="inline-flex items-center px-6 py-3 bg-indigo-600 text-white font-medium rounded-full hover:bg-indigo-700 transition-colors"
+                            >
+                                Create Group
+                            </Link>
+                        </div>
+                    )}
+                </div>
+            )}
 
             <FloatingAIButton />
         </div>

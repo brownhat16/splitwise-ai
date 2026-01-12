@@ -329,21 +329,195 @@ async def get_i_owe(user_id: int, db: AsyncSession = Depends(get_session)):
 
 # ============== GROUP ENDPOINTS ==============
 
+from sqlalchemy.orm import selectinload
+
 @app.get("/users/{user_id}/groups")
 async def get_user_groups(user_id: int, db: AsyncSession = Depends(get_session)):
-    """Get groups the user belongs to."""
-    query = select(User).where(User.id == user_id)
+    """Get groups the user belongs to with full details."""
+    query = select(User).where(User.id == user_id).options(selectinload(User.groups))
     result = await db.execute(query)
     user = result.scalar_one_or_none()
     
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
     
-    groups = [{"id": g.id, "name": g.name} for g in user.groups]
+    groups = []
+    for g in user.groups:
+        # Get member count
+        members_query = select(User).join(User.groups).where(Group.id == g.id)
+        members_result = await db.execute(members_query)
+        members = members_result.scalars().all()
+        
+        groups.append({
+            "id": g.id, 
+            "name": g.name,
+            "description": g.description,
+            "member_count": len(members),
+            "members": [{"id": m.id, "name": m.name} for m in members]
+        })
     return {"groups": groups}
+
+
+@app.get("/groups")
+async def get_all_groups(db: AsyncSession = Depends(get_session)):
+    """Get all groups."""
+    query = select(Group).options(selectinload(Group.members))
+    result = await db.execute(query)
+    groups = result.scalars().all()
+    
+    return {"groups": [
+        {
+            "id": g.id,
+            "name": g.name,
+            "description": g.description,
+            "member_count": len(g.members),
+            "members": [{"id": m.id, "name": m.name} for m in g.members]
+        }
+        for g in groups
+    ]}
+
+
+@app.get("/groups/{group_id}")
+async def get_group(group_id: int, db: AsyncSession = Depends(get_session)):
+    """Get group details."""
+    query = select(Group).where(Group.id == group_id).options(
+        selectinload(Group.members),
+        selectinload(Group.expenses)
+    )
+    result = await db.execute(query)
+    group = result.scalar_one_or_none()
+    
+    if not group:
+        raise HTTPException(status_code=404, detail="Group not found")
+    
+    return {
+        "id": group.id,
+        "name": group.name,
+        "description": group.description,
+        "members": [{"id": m.id, "name": m.name} for m in group.members],
+        "expenses": [
+            {
+                "id": e.id,
+                "description": e.description,
+                "amount": e.amount,
+                "date": e.date.isoformat() if e.date else None
+            }
+            for e in group.expenses
+        ]
+    }
+
+
+# ============== EXPENSE ENDPOINTS ==============
+
+from models import ExpenseSplit
+
+@app.get("/expenses")
+async def get_all_expenses(
+    skip: int = 0, 
+    limit: int = 50,
+    db: AsyncSession = Depends(get_session)
+):
+    """Get all expenses with pagination."""
+    query = select(Expense).options(
+        selectinload(Expense.payer),
+        selectinload(Expense.splits).selectinload(ExpenseSplit.user),
+        selectinload(Expense.group)
+    ).order_by(Expense.date.desc()).offset(skip).limit(limit)
+    
+    result = await db.execute(query)
+    expenses = result.scalars().all()
+    
+    return {"expenses": [
+        {
+            "id": e.id,
+            "description": e.description,
+            "amount": e.amount,
+            "currency": e.currency,
+            "date": e.date.isoformat() if e.date else None,
+            "is_settled": e.is_settled,
+            "payer": {"id": e.payer.id, "name": e.payer.name} if e.payer else None,
+            "group": {"id": e.group.id, "name": e.group.name} if e.group else None,
+            "splits": [
+                {"user": {"id": s.user.id, "name": s.user.name}, "amount": s.amount}
+                for s in e.splits
+            ] if e.splits else []
+        }
+        for e in expenses
+    ]}
+
+
+@app.get("/users/{user_id}/expenses")
+async def get_user_expenses(
+    user_id: int,
+    skip: int = 0,
+    limit: int = 50,
+    db: AsyncSession = Depends(get_session)
+):
+    """Get expenses involving a specific user."""
+    # Get expenses where user is payer OR in splits
+    query = select(Expense).options(
+        selectinload(Expense.payer),
+        selectinload(Expense.splits).selectinload(ExpenseSplit.user),
+        selectinload(Expense.group)
+    ).where(
+        (Expense.payer_id == user_id) | 
+        (Expense.splits.any(ExpenseSplit.user_id == user_id))
+    ).order_by(Expense.date.desc()).offset(skip).limit(limit)
+    
+    result = await db.execute(query)
+    expenses = result.scalars().unique().all()
+    
+    return {"expenses": [
+        {
+            "id": e.id,
+            "description": e.description,
+            "amount": e.amount,
+            "currency": e.currency,
+            "date": e.date.isoformat() if e.date else None,
+            "is_settled": e.is_settled,
+            "payer": {"id": e.payer.id, "name": e.payer.name} if e.payer else None,
+            "group": {"id": e.group.id, "name": e.group.name} if e.group else None,
+            "splits": [
+                {"user": {"id": s.user.id, "name": s.user.name}, "amount": s.amount}
+                for s in e.splits
+            ] if e.splits else []
+        }
+        for e in expenses
+    ]}
+
+
+@app.get("/expenses/{expense_id}")
+async def get_expense(expense_id: int, db: AsyncSession = Depends(get_session)):
+    """Get expense details."""
+    query = select(Expense).where(Expense.id == expense_id).options(
+        selectinload(Expense.payer),
+        selectinload(Expense.splits).selectinload(ExpenseSplit.user),
+        selectinload(Expense.group)
+    )
+    result = await db.execute(query)
+    e = result.scalar_one_or_none()
+    
+    if not e:
+        raise HTTPException(status_code=404, detail="Expense not found")
+    
+    return {
+        "id": e.id,
+        "description": e.description,
+        "amount": e.amount,
+        "currency": e.currency,
+        "date": e.date.isoformat() if e.date else None,
+        "is_settled": e.is_settled,
+        "payer": {"id": e.payer.id, "name": e.payer.name} if e.payer else None,
+        "group": {"id": e.group.id, "name": e.group.name} if e.group else None,
+        "splits": [
+            {"user": {"id": s.user.id, "name": s.user.name}, "amount": s.amount}
+            for s in e.splits
+        ] if e.splits else []
+    }
 
 
 # Entry point for running directly
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run(app, host="0.0.0.0", port=8000)
+

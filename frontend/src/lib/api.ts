@@ -32,6 +32,26 @@ export interface AuthResponse {
     role: string;
 }
 
+export interface ExpenseData {
+    id: number;
+    description: string;
+    amount: number;
+    currency: string;
+    date: string | null;
+    is_settled: boolean;
+    payer: { id: number; name: string } | null;
+    group: { id: number; name: string } | null;
+    splits: Array<{ user: { id: number; name: string }; amount: number }>;
+}
+
+export interface GroupData {
+    id: number;
+    name: string;
+    description: string | null;
+    member_count: number;
+    members: Array<{ id: number; name: string }>;
+}
+
 class ApiClient {
     private baseUrl: string;
     private token: string | null = null;
@@ -183,6 +203,38 @@ class ApiClient {
             return response.ok;
         } catch {
             return false;
+        }
+    }
+
+    // Get expenses for current user
+    async getExpenses(): Promise<{ expenses: ExpenseData[] }> {
+        if (!this.userId) return { expenses: [] };
+
+        try {
+            const response = await fetch(`${this.baseUrl}/users/${this.userId}/expenses`, {
+                headers: this.getHeaders()
+            });
+            if (!response.ok) throw new Error(`HTTP ${response.status}`);
+            return await response.json();
+        } catch (error) {
+            console.error('Expenses API error:', error);
+            return { expenses: [] };
+        }
+    }
+
+    // Get groups for current user
+    async getGroups(): Promise<{ groups: GroupData[] }> {
+        if (!this.userId) return { groups: [] };
+
+        try {
+            const response = await fetch(`${this.baseUrl}/users/${this.userId}/groups`, {
+                headers: this.getHeaders()
+            });
+            if (!response.ok) throw new Error(`HTTP ${response.status}`);
+            return await response.json();
+        } catch (error) {
+            console.error('Groups API error:', error);
+            return { groups: [] };
         }
     }
 }
