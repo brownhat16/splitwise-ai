@@ -356,23 +356,19 @@ class AgentOrchestrator:
             # Find the user (including placeholders)
             other_id = await self._get_or_create_user_by_name(name)
             
-            # 1. Check direct balance with asking user
+            # Get direct balance between you and this person
             balance = await self.ledger_manager.get_balance_between_users(user_id, other_id)
             
-            from reconciliation import explain_balance
             other_user = await self._get_user(other_id)
             other_name = other_user.name if other_user else name
             
-            # 2. Check if specific user has other debts (global summary)
-            # Useful for "How much does Bob owe?" queries
-            other_summary = await self.ledger_manager.get_user_summary(other_id)
-            
-            if other_summary['net_balance'] != 0 and abs(balance) < 0.01:
-                # If direct balance is zero but they have other debts, show global summary
-                bal_resp = await self.ledger_agent.explain_balance(other_summary)
-                responses.append(f"**{other_name}'s Overall Status:**\n{bal_resp}")
+            # Show what this person owes YOU (the current user's perspective)
+            if balance > 0.01:
+                responses.append(f"**{other_name}** owes you **₹{balance:,.2f}**")
+            elif balance < -0.01:
+                responses.append(f"You owe **{other_name}** **₹{abs(balance):,.2f}**")
             else:
-                responses.append(explain_balance(balance, other_name))
+                responses.append(f"You and **{other_name}** are all settled up! ✅")
         
         return {
             "response": "\n\n".join(responses) if responses else "You are all settled up with them!",
