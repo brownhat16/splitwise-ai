@@ -472,11 +472,11 @@ class AgentOrchestrator:
         self.db.add(group)
         await self.db.flush()
         
-        # Add members
+        # Add members using direct insert (avoid lazy loading in async)
+        from models import group_members
         for mid in member_ids:
-            member = await self._get_user(mid)
-            if member:
-                group.members.append(member)
+            stmt = group_members.insert().values(group_id=group.id, user_id=mid)
+            await self.db.execute(stmt)
         
         await self.db.commit()
         
