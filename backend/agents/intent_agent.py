@@ -65,7 +65,11 @@ INTENT TYPES:
 12. "help" - Asking for help OR greeting (hello, hi, hey)
 13. "provide_emails" - User is providing email addresses (response to invite prompt)
 14. "add_member" - Adding people to a group (e.g., "add John to the group", "add X and Y to it")
-15. "unclear" - ONLY use this if you truly cannot guess the intent
+15. "list_expenses" - Show/list expenses ("show my expenses", "what did I spend", "recent expenses")
+16. "list_groups" - Show/list groups ("show my groups", "list groups", "what groups am I in")
+17. "view_group" - View group details or members ("who's in Roommates", "show Roommates group")
+18. "remove_member" - Remove someone from a group ("remove Bob from Roommates")
+19. "unclear" - ONLY use this if you truly cannot guess the intent
 
 EMAIL RESPONSE PATTERNS:
 - If input contains email addresses (format: xxx@xxx.xxx), treat as "provide_emails" intent
@@ -223,6 +227,33 @@ Output: {{"intent": "add_member", "participants": ["Priya"], "clarification_need
 
 Input: "Add Rahul, Amit and Sarah to the Roommates group"
 Output: {{"intent": "add_member", "participants": ["Rahul", "Amit", "Sarah"], "group": "Roommates", "clarification_needed": false, "confidence": 0.95}}
+
+Input: "Show my expenses"
+Output: {{"intent": "list_expenses", "clarification_needed": false, "confidence": 0.95}}
+
+Input: "What did I spend this week?"
+Output: {{"intent": "list_expenses", "time_range": "week", "clarification_needed": false, "confidence": 0.9}}
+
+Input: "Recent expenses"
+Output: {{"intent": "list_expenses", "clarification_needed": false, "confidence": 0.9}}
+
+Input: "Show my groups"
+Output: {{"intent": "list_groups", "clarification_needed": false, "confidence": 0.95}}
+
+Input: "What groups am I in?"
+Output: {{"intent": "list_groups", "clarification_needed": false, "confidence": 0.9}}
+
+Input: "Who's in Roommates?"
+Output: {{"intent": "view_group", "group": "Roommates", "clarification_needed": false, "confidence": 0.95}}
+
+Input: "Show Roommates group"
+Output: {{"intent": "view_group", "group": "Roommates", "clarification_needed": false, "confidence": 0.95}}
+
+Input: "Remove Bob from Roommates"
+Output: {{"intent": "remove_member", "participant": "Bob", "group": "Roommates", "clarification_needed": false, "confidence": 0.95}}
+
+Input: "Take Priya out of the group"
+Output: {{"intent": "remove_member", "participant": "Priya", "clarification_needed": false, "confidence": 0.9}}
 
 Now parse the user's message. Be flexible and make your best guess:"""
 

@@ -52,6 +52,10 @@ class AgentOrchestrator:
             "add_person": self._handle_add_person,
             "create_group": self._handle_create_group,
             "add_member": self._handle_add_member,
+            "list_expenses": self._handle_list_expenses,
+            "list_groups": self._handle_list_groups,
+            "view_group": self._handle_view_group,
+            "remove_member": self._handle_remove_member,
             "query": self._handle_query,
             "reminder": self._handle_reminder,
             "undo": self._handle_undo,
@@ -577,6 +581,159 @@ class AgentOrchestrator:
                 "response": f"Added {names_str} to '{group.name}'!",
                 "success": True
             }
+    
+    async def _handle_list_expenses(self, user_id: int, intent: Dict,
+                                     context: Dict = None) -> Dict[str, Any]:
+        """Handle listing user's expenses."""
+        from models import Expense, ExpenseSplit
+        
+        # Get recent expenses where user is payer or participant
+        query = select(Expense).options(
+            selectinload(Expense.payer),
+            selectinload(Expense.splits).selectinload(ExpenseSplit.user)
+        ).where(
+            (Expense.payer_id == user_id) | 
+            (Expense.splits.any(ExpenseSplit.user_id == user_id))
+        ).order_by(Expense.date.desc()).limit(10)
+        
+        result = await self.db.execute(query)
+        expenses = result.scalars().unique().all()
+        
+        if not expenses:
+            return {
+                "response": "You don't have any expenses yet. Try saying 'Split ₹500 dinner with Amit' to add one!",
+                "success": True
+            }
+        
+        lines = ["**Your Recent Expenses:**\n"]
+        for e in expenses:
+            payer_name = e.payer.name if e.payer else "Unknown"
+            date_str = e.date.strftime("%b %d") if e.date else ""
+            lines.append(f"• {e.description}: ₹{e.amount:,.0f} (paid by {payer_name}) - {date_str}")
+        
+        return {
+            "response": "\n".join(lines),
+            "success": True
+        }
+    
+    async def _handle_list_groups(self, user_id: int, intent: Dict,
+                                   context: Dict = None) -> Dict[str, Any]:
+        """Handle listing user's groups."""
+        from models import group_members
+        
+        # Get groups where user is a member
+        query = select(Group).join(
+            group_members, Group.id == group_members.c.group_id
+        ).where(group_members.c.user_id == user_id)
+        
+        result = await self.db.execute(query)
+        groups = result.scalars().all()
+        
+        if not groups:
+            return {
+                "response": "You're not in any groups yet. Try saying 'Create a group called Roommates' to create one!",
+                "success": True
+            }
+        
+        lines = ["**Your Groups:**\n"]
+        for g in groups:
+            lines.append(f"• {g.name}")
+        
+        return {
+            "response": "\n".join(lines),
+            "success": True
+        }
+    
+    async def _handle_view_group(self, user_id: int, intent: Dict,
+                                  context: Dict = None) -> Dict[str, Any]:
+        """Handle viewing group details."""
+        group_name = intent.get("group")
+        
+        if not group_name:
+            return {
+                "response": "Which group would you like to see? Try 'Show Roommates group'.",
+                "needs_clarification": True,
+                "success": False
+            }
+        
+        # Find the group
+        query = select(Group).options(
+            selectinload(Group.members)
+        ).where(Group.name.ilike(f"%{group_name}%"))
+        
+        result = await self.db.execute(query)
+        group = result.scalar_one_or_none()
+        
+        if not group:
+            return {
+                "response": f"I couldn't find a group called '{group_name}'.",
+                "success": False
+            }
+        
+        member_names = [m.name for m in group.members]
+        if not member_names:
+            return {
+                "response": f"**{group.name}** has no members yet.",
+                "success": True
+            }
+        
+        return {
+            "response": f"**{group.name}** has {len(member_names)} members: {', '.join(member_names)}",
+            "success": True
+        }
+    
+    async def _handle_remove_member(self, user_id: int, intent: Dict,
+                                     context: Dict = None) -> Dict[str, Any]:
+        """Handle removing a member from a group."""
+        participant = intent.get("participant")
+        group_name = intent.get("group")
+        
+        if not participant:
+            return {
+                "response": "Who would you like to remove?",
+                "needs_clarification": True,
+                "success": False
+            }
+        
+        # Find the group
+        if group_name:
+            query = select(Group).where(Group.name.ilike(f"%{group_name}%"))
+        else:
+            # Use most recent group
+            query = select(Group).where(
+                Group.created_by_id == user_id
+            ).order_by(Group.created_at.desc()).limit(1)
+        
+        result = await self.db.execute(query)
+        group = result.scalar_one_or_none()
+        
+        if not group:
+            return {
+                "response": "I couldn't find that group. Please specify the group name.",
+                "success": False
+            }
+        
+        # Find the user to remove
+        member_id = await self._get_or_create_user_by_name(participant, create_if_missing=False)
+        if not member_id:
+            return {
+                "response": f"I don't know anyone named {participant}.",
+                "success": False
+            }
+        
+        # Remove from group
+        from models import group_members
+        delete_stmt = group_members.delete().where(
+            group_members.c.group_id == group.id,
+            group_members.c.user_id == member_id
+        )
+        await self.db.execute(delete_stmt)
+        await self.db.commit()
+        
+        return {
+            "response": f"Removed {participant} from '{group.name}'.",
+            "success": True
+        }
     
     async def _handle_query(self, user_id: int, intent: Dict,
                              context: Dict = None) -> Dict[str, Any]:
