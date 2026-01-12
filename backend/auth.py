@@ -24,6 +24,9 @@ login_attempts = defaultdict(list)
 RATE_LIMIT_WINDOW = 60  # seconds
 MAX_ATTEMPTS = 5
 
+# Token blacklist for logout (in-memory, use Redis in production)
+token_blacklist = set()
+
 # Security Context
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="auth/token")
@@ -95,6 +98,15 @@ async def get_current_user(token: str = Depends(oauth2_scheme), db: AsyncSession
         detail="Could not validate credentials",
         headers={"WWW-Authenticate": "Bearer"},
     )
+    
+    # Check if token is blacklisted (logged out)
+    if token in token_blacklist:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Token has been invalidated. Please login again.",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+    
     try:
         payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
         email: str = payload.get("sub")
@@ -261,3 +273,18 @@ async def login(request: Request, form_data: OAuth2PasswordRequestForm = Depends
         "role": user.role
     }
 
+@router.post("/logout")
+async def logout(token: str = Depends(oauth2_scheme)):
+    """Invalidate the current token."""
+    token_blacklist.add(token)
+    return {"message": "Successfully logged out"}
+
+@router.get("/me")
+async def get_current_user_info(current_user: User = Depends(get_current_active_user)):
+    """Get current user info."""
+    return {
+        "id": current_user.id,
+        "name": current_user.name,
+        "email": current_user.email,
+        "role": current_user.role
+    }

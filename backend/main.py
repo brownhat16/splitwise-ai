@@ -342,8 +342,16 @@ async def get_i_owe(user_id: int, db: AsyncSession = Depends(get_session)):
 from sqlalchemy.orm import selectinload
 
 @app.get("/users/{user_id}/groups")
-async def get_user_groups(user_id: int, db: AsyncSession = Depends(get_session)):
-    """Get groups the user belongs to with full details."""
+async def get_user_groups(
+    user_id: int, 
+    db: AsyncSession = Depends(get_session),
+    current_user: User = Depends(get_current_active_user)
+):
+    """Get groups the user belongs to (authorization required)."""
+    # Authorization check
+    if current_user.id != user_id and current_user.role != "admin":
+        raise HTTPException(status_code=403, detail="Not authorized to access this user's groups")
+    
     query = select(User).where(User.id == user_id).options(selectinload(User.groups))
     result = await db.execute(query)
     user = result.scalar_one_or_none()
