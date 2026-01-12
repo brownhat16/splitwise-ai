@@ -530,8 +530,140 @@ async def get_expense(expense_id: int, db: AsyncSession = Depends(get_session)):
     }
 
 
+# ============== MANUAL FORM ENDPOINTS ==============
+
+class ManualExpenseCreate(BaseModel):
+    description: str
+    amount: float
+    participant_names: List[str]
+    split_type: str = "equal"
+    group_id: Optional[int] = None
+
+class ManualGroupCreate(BaseModel):
+    name: str
+    description: Optional[str] = ""
+    member_names: Optional[List[str]] = []
+
+@app.post("/expenses/create")
+async def create_expense_manual(
+    expense: ManualExpenseCreate,
+    db: AsyncSession = Depends(get_session),
+    current_user: User = Depends(get_current_active_user)
+):
+    """Create expense via form (AI fallback)."""
+    # Validation
+    if expense.amount <= 0:
+        raise HTTPException(status_code=400, detail="Amount must be greater than zero")
+    if expense.amount > 10_00_00_000:
+        raise HTTPException(status_code=400, detail="Amount exceeds maximum limit of ₹10 crore")
+    if len(expense.participant_names) > 50:
+        raise HTTPException(status_code=400, detail="Maximum 50 participants allowed")
+    if not expense.description.strip():
+        raise HTTPException(status_code=400, detail="Description is required")
+    
+    # Get or create participants
+    participant_ids = [current_user.id]
+    for name in expense.participant_names:
+        if name.lower() not in ["me", "i", current_user.name.lower()]:
+            # Check if user exists
+            query = select(User).where(User.name.ilike(f"%{name}%"))
+            result = await db.execute(query)
+            user = result.scalar_one_or_none()
+            if user:
+                if user.id not in participant_ids:
+                    participant_ids.append(user.id)
+            else:
+                # Create new user
+                new_user = User(name=name)
+                db.add(new_user)
+                await db.flush()
+                participant_ids.append(new_user.id)
+    
+    # Create expense
+    new_expense = Expense(
+        description=expense.description,
+        amount=expense.amount,
+        payer_id=current_user.id,
+        group_id=expense.group_id,
+        split_type=SplitType.EQUAL
+    )
+    db.add(new_expense)
+    await db.flush()
+    
+    # Create splits
+    split_amount = expense.amount / len(participant_ids)
+    for pid in participant_ids:
+        split = ExpenseSplit(
+            expense_id=new_expense.id,
+            user_id=pid,
+            amount=split_amount
+        )
+        db.add(split)
+    
+    # Create ledger entries
+    ledger = LedgerManager(db)
+    await ledger.record_expense(new_expense, participant_ids)
+    
+    await db.commit()
+    
+    return {
+        "success": True,
+        "message": f"Expense '{expense.description}' for ₹{expense.amount:,.2f} created successfully!",
+        "expense_id": new_expense.id
+    }
+
+from models import group_members, SplitType
+
+@app.post("/groups/create")
+async def create_group_manual(
+    group: ManualGroupCreate,
+    db: AsyncSession = Depends(get_session),
+    current_user: User = Depends(get_current_active_user)
+):
+    """Create group via form (AI fallback)."""
+    if not group.name.strip():
+        raise HTTPException(status_code=400, detail="Group name is required")
+    if len(group.name) > 100:
+        raise HTTPException(status_code=400, detail="Group name too long (max 100 characters)")
+    
+    # Create group
+    new_group = Group(
+        name=group.name,
+        description=group.description or "",
+        created_by_id=current_user.id
+    )
+    db.add(new_group)
+    await db.flush()
+    
+    # Add creator as member
+    member_ids = [current_user.id]
+    
+    # Add other members
+    for name in (group.member_names or []):
+        if name.lower() not in ["me", "i", current_user.name.lower()]:
+            query = select(User).where(User.name.ilike(f"%{name}%"))
+            result = await db.execute(query)
+            user = result.scalar_one_or_none()
+            if user and user.id not in member_ids:
+                member_ids.append(user.id)
+    
+    # Add all members to group
+    for mid in member_ids:
+        stmt = group_members.insert().values(group_id=new_group.id, user_id=mid)
+        await db.execute(stmt)
+    
+    await db.commit()
+    
+    return {
+        "success": True,
+        "message": f"Group '{group.name}' created with {len(member_ids)} members!",
+        "group_id": new_group.id
+    }
+
+
 # Entry point for running directly
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run(app, host="0.0.0.0", port=8000)
+
 

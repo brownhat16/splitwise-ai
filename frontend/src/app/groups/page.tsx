@@ -103,12 +103,20 @@ export default function GroupsPage() {
                             <p className="text-slate-500 dark:text-slate-400 mb-6">
                                 Create a group to track shared expenses
                             </p>
-                            <Link
-                                href="/?message=Create a group called Roommates"
-                                className="inline-flex items-center px-6 py-3 bg-indigo-600 text-white font-medium rounded-full hover:bg-indigo-700 transition-colors"
-                            >
-                                Create Group
-                            </Link>
+                            <div className="flex flex-col sm:flex-row gap-3 justify-center">
+                                <Link
+                                    href="/groups/new"
+                                    className="inline-flex items-center px-6 py-3 bg-indigo-600 text-white font-medium rounded-full hover:bg-indigo-700 transition-colors"
+                                >
+                                    Create Group
+                                </Link>
+                                <Link
+                                    href="/"
+                                    className="inline-flex items-center px-6 py-3 bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-200 font-medium rounded-full hover:bg-slate-300 dark:hover:bg-slate-600 transition-colors"
+                                >
+                                    Use AI Chat
+                                </Link>
+                            </div>
                         </div>
                     )}
                 </div>

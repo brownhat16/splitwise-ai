@@ -136,6 +136,25 @@ class AgentOrchestrator:
                 "success": False
             }
         
+        # Input validation
+        if amount <= 0:
+            return {
+                "response": "The amount must be greater than zero. Please provide a valid expense amount.",
+                "success": False
+            }
+        
+        if amount > 10_00_00_000:  # 10 crore limit
+            return {
+                "response": "That amount seems too high. Please enter an amount less than ₹10 crore.",
+                "success": False
+            }
+        
+        if len(participants_names) > 50:
+            return {
+                "response": "Too many participants. Please limit to 50 people per expense.",
+                "success": False
+            }
+        
         # Resolve user IDs
         user = await self._get_user(user_id)
         payer_id = user_id if payer_name.lower() in ["me", "i", user.name.lower()] else await self._get_or_create_user_by_name(payer_name)

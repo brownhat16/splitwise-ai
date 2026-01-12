@@ -155,12 +155,20 @@ export default function ExpensesPage() {
                             <p className="text-slate-500 dark:text-slate-400 mb-6">
                                 Start by adding your first expense
                             </p>
-                            <Link
-                                href="/"
-                                className="inline-flex items-center px-6 py-3 bg-indigo-600 text-white font-medium rounded-full hover:bg-indigo-700 transition-colors"
-                            >
-                                Add via Chat
-                            </Link>
+                            <div className="flex flex-col sm:flex-row gap-3 justify-center">
+                                <Link
+                                    href="/expenses/new"
+                                    className="inline-flex items-center px-6 py-3 bg-indigo-600 text-white font-medium rounded-full hover:bg-indigo-700 transition-colors"
+                                >
+                                    Add Expense
+                                </Link>
+                                <Link
+                                    href="/"
+                                    className="inline-flex items-center px-6 py-3 bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-200 font-medium rounded-full hover:bg-slate-300 dark:hover:bg-slate-600 transition-colors"
+                                >
+                                    Use AI Chat
+                                </Link>
+                            </div>
                         </div>
                     )}
                 </div>
