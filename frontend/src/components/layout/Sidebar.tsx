@@ -10,11 +10,14 @@ import {
     Users,
     Settings,
     Shield,
-    LogOut
+    LogOut,
+    Sun,
+    Moon
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { motion } from 'framer-motion';
 import api from '@/lib/api';
+import { useTheme } from '@/components/ThemeProvider';
 
 const navItems = [
     { href: '/', label: 'Chat', icon: MessageSquare },
@@ -28,6 +31,11 @@ export default function Sidebar() {
     const router = useRouter();
     const [role, setRole] = useState<string | null>(null);
     const [mounted, setMounted] = useState(false);
+    const { theme, setTheme } = useTheme();
+
+    const toggleTheme = () => {
+        setTheme(theme === 'dark' ? 'light' : 'dark');
+    };
 
     useEffect(() => {
         setMounted(true);
@@ -104,6 +112,21 @@ export default function Sidebar() {
                         <span className="font-medium text-sm">Admin Panel</span>
                     </Link>
                 )}
+
+                {/* Theme Toggle */}
+                <button
+                    onClick={toggleTheme}
+                    className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
+                >
+                    {theme === 'dark' ? (
+                        <Sun className="w-5 h-5" />
+                    ) : (
+                        <Moon className="w-5 h-5" />
+                    )}
+                    <span className="font-medium text-sm">
+                        {theme === 'dark' ? 'Light Mode' : 'Dark Mode'}
+                    </span>
+                </button>
 
                 <button
                     onClick={handleLogout}

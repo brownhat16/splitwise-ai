@@ -27,8 +27,8 @@ export default function MessageBubble({ message, onAction, onQuickReply }: Messa
         >
             {/* Avatar - AI only */}
             {!isUser && (
-                <div className="w-8 h-8 rounded-full bg-muted border border-border flex items-center justify-center shrink-0">
-                    <Bot className="w-4 h-4 text-muted-foreground" />
+                <div className="w-8 h-8 rounded-full bg-gradient-to-br from-primary/20 to-primary/10 border border-border flex items-center justify-center shrink-0">
+                    <Bot className="w-4 h-4 text-primary" />
                 </div>
             )}
 
@@ -38,27 +38,31 @@ export default function MessageBubble({ message, onAction, onQuickReply }: Messa
                     ? "bg-primary text-primary-foreground rounded-2xl rounded-tr-sm"
                     : "bg-card border border-border/50 text-card-foreground rounded-2xl rounded-tl-sm backdrop-blur-sm"
             )}>
+
+                {/* User Avatar */}
+                {isUser && (
+                    <div className="absolute -right-10 top-0 w-8 h-8 rounded-full bg-gradient-to-br from-emerald-500 to-emerald-600 flex items-center justify-center shrink-0 text-white text-xs font-bold shadow-md">
+                        <User className="w-4 h-4" />
+                    </div>
+                )}
                 {/* Thinking indicator */}
                 {isThinking ? (
-                    <div className="flex items-center gap-2 py-1">
-                        <span className="text-sm text-muted-foreground font-medium">Thinking</span>
-                        <div className="flex gap-1">
-                            <motion.span
-                                animate={{ opacity: [0, 1, 0] }}
-                                transition={{ repeat: Infinity, duration: 1.5, delay: 0 }}
-                                className="w-1 h-1 rounded-full bg-muted-foreground"
-                            />
-                            <motion.span
-                                animate={{ opacity: [0, 1, 0] }}
-                                transition={{ repeat: Infinity, duration: 1.5, delay: 0.2 }}
-                                className="w-1 h-1 rounded-full bg-muted-foreground"
-                            />
-                            <motion.span
-                                animate={{ opacity: [0, 1, 0] }}
-                                transition={{ repeat: Infinity, duration: 1.5, delay: 0.4 }}
-                                className="w-1 h-1 rounded-full bg-muted-foreground"
-                            />
-                        </div>
+                    <div className="flex items-center gap-1.5 py-1">
+                        <motion.span
+                            animate={{ y: [0, -6, 0] }}
+                            transition={{ repeat: Infinity, duration: 0.6, delay: 0 }}
+                            className="w-2 h-2 rounded-full bg-primary/60"
+                        />
+                        <motion.span
+                            animate={{ y: [0, -6, 0] }}
+                            transition={{ repeat: Infinity, duration: 0.6, delay: 0.15 }}
+                            className="w-2 h-2 rounded-full bg-primary/60"
+                        />
+                        <motion.span
+                            animate={{ y: [0, -6, 0] }}
+                            transition={{ repeat: Infinity, duration: 0.6, delay: 0.3 }}
+                            className="w-2 h-2 rounded-full bg-primary/60"
+                        />
                     </div>
                 ) : (
                     <div className="space-y-3">
