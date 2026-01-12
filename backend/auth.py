@@ -1,10 +1,13 @@
 from datetime import datetime, timedelta
 from typing import Optional
-from fastapi import APIRouter, Depends, HTTPException, status
+import re
+from collections import defaultdict
+import time
+from fastapi import APIRouter, Depends, HTTPException, status, Request
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
 from jose import JWTError, jwt
 from passlib.context import CryptContext
-from pydantic import BaseModel
+from pydantic import BaseModel, validator
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 from database import get_db
@@ -12,15 +15,48 @@ from models import User, Invite, InviteStatus, LedgerEntry, ExpenseSplit
 from sqlalchemy import update
 
 # Config
-SECRET_KEY = "your-secret-key-keep-it-secret" # In production, use env var
+SECRET_KEY = "your-secret-key-keep-it-secret"  # In production, use env var
 ALGORITHM = "HS256"
-ACCESS_TOKEN_EXPIRE_MINUTES = 300
+ACCESS_TOKEN_EXPIRE_MINUTES = 60  # Reduced from 300 for security
+
+# Rate limiting storage (in-memory, use Redis in production)
+login_attempts = defaultdict(list)
+RATE_LIMIT_WINDOW = 60  # seconds
+MAX_ATTEMPTS = 5
 
 # Security Context
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="auth/token")
 
 router = APIRouter(prefix="/auth", tags=["auth"])
+
+# --- Password Validation ---
+def validate_password_strength(password: str) -> tuple[bool, str]:
+    """Validate password meets security requirements."""
+    if len(password) < 8:
+        return False, "Password must be at least 8 characters long"
+    if not re.search(r'[A-Z]', password):
+        return False, "Password must contain at least one uppercase letter"
+    if not re.search(r'[a-z]', password):
+        return False, "Password must contain at least one lowercase letter"
+    if not re.search(r'\d', password):
+        return False, "Password must contain at least one number"
+    if not re.search(r'[!@#$%^&*(),.?":{}|<>]', password):
+        return False, "Password must contain at least one special character"
+    return True, "Password is strong"
+
+def check_rate_limit(identifier: str) -> bool:
+    """Check if identifier has exceeded rate limit. Returns True if allowed."""
+    current_time = time.time()
+    # Clean old attempts
+    login_attempts[identifier] = [
+        t for t in login_attempts[identifier] 
+        if current_time - t < RATE_LIMIT_WINDOW
+    ]
+    if len(login_attempts[identifier]) >= MAX_ATTEMPTS:
+        return False
+    login_attempts[identifier].append(current_time)
+    return True
 
 # --- Models ---
 class Token(BaseModel):
@@ -88,7 +124,20 @@ async def get_current_admin(current_user: User = Depends(get_current_active_user
 # --- Routes ---
 
 @router.post("/register", response_model=Token)
-async def register(user: UserCreate, db: AsyncSession = Depends(get_db)):
+async def register(user: UserCreate, request: Request, db: AsyncSession = Depends(get_db)):
+    # Rate limiting check
+    client_ip = request.client.host if request.client else "unknown"
+    if not check_rate_limit(f"register:{client_ip}"):
+        raise HTTPException(
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+            detail="Too many registration attempts. Please try again later."
+        )
+    
+    # Validate password strength
+    is_valid, message = validate_password_strength(user.password)
+    if not is_valid:
+        raise HTTPException(status_code=400, detail=message)
+    
     # Check if user exists
     query = select(User).where(User.email == user.email)
     result = await db.execute(query)
@@ -177,7 +226,15 @@ async def register(user: UserCreate, db: AsyncSession = Depends(get_db)):
     }
 
 @router.post("/token", response_model=Token)
-async def login(form_data: OAuth2PasswordRequestForm = Depends(), db: AsyncSession = Depends(get_db)):
+async def login(request: Request, form_data: OAuth2PasswordRequestForm = Depends(), db: AsyncSession = Depends(get_db)):
+    # Rate limiting check
+    client_ip = request.client.host if request.client else "unknown"
+    if not check_rate_limit(f"login:{client_ip}"):
+        raise HTTPException(
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+            detail="Too many login attempts. Please try again later."
+        )
+    
     # Authenticate
     query = select(User).where(User.email == form_data.username)
     result = await db.execute(query)
@@ -203,3 +260,4 @@ async def login(form_data: OAuth2PasswordRequestForm = Depends(), db: AsyncSessi
         "name": user.name,
         "role": user.role
     }
+

@@ -14,7 +14,7 @@ from sqlalchemy import select
 from models import User, Group, Expense
 from agents import AgentOrchestrator, AgentConfig
 from ledger import LedgerManager
-from auth import router as auth_router
+from auth import router as auth_router, get_current_active_user
 
 # Pydantic models for API
 class ChatRequest(BaseModel):
@@ -95,14 +95,24 @@ app = FastAPI(
     lifespan=lifespan
 )
 
-# CORS middleware
+# CORS middleware - Restrict origins for security
+ALLOWED_ORIGINS = [
+    "http://localhost:3000",
+    "https://splitwise-ai-bice.vercel.app",
+    "https://splitwise-ai-77y1.onrender.com",
+]
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=ALLOWED_ORIGINS,
     allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
+    allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+    allow_headers=["Authorization", "Content-Type"],
 )
+
+# Security headers middleware
+from middleware import SecurityHeadersMiddleware
+app.add_middleware(SecurityHeadersMiddleware)
 
 app.include_router(auth_router)
 
@@ -451,9 +461,13 @@ async def get_user_expenses(
     user_id: int,
     skip: int = 0,
     limit: int = 50,
-    db: AsyncSession = Depends(get_session)
+    db: AsyncSession = Depends(get_session),
+    current_user: User = Depends(get_current_active_user)
 ):
-    """Get expenses involving a specific user."""
+    """Get expenses involving a specific user (authorization required)."""
+    # Authorization check: users can only access their own expenses
+    if current_user.id != user_id and current_user.role != "admin":
+        raise HTTPException(status_code=403, detail="Not authorized to access this user's expenses")
     # Get expenses where user is payer OR in splits
     query = select(Expense).options(
         selectinload(Expense.payer),
