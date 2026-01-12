@@ -64,7 +64,8 @@ INTENT TYPES:
 11. "check_invite_status" - Check if someone has joined, invite status, pending invites
 12. "help" - Asking for help OR greeting (hello, hi, hey)
 13. "provide_emails" - User is providing email addresses (response to invite prompt)
-14. "unclear" - ONLY use this if you truly cannot guess the intent
+14. "add_member" - Adding people to a group (e.g., "add John to the group", "add X and Y to it")
+15. "unclear" - ONLY use this if you truly cannot guess the intent
 
 EMAIL RESPONSE PATTERNS:
 - If input contains email addresses (format: xxx@xxx.xxx), treat as "provide_emails" intent
@@ -210,6 +211,18 @@ Output: {{"intent": "check_invite_status", "participants": ["Bob"], "clarificati
 
 Input: "What happens if Bob never joins?"
 Output: {{"intent": "explain", "topic": "invite_persistence", "clarification_needed": false, "confidence": 0.9}}
+
+Input: "Add Vinayak and Manasvi to it"
+Output: {{"intent": "add_member", "participants": ["Vinayak", "Manasvi"], "clarification_needed": false, "confidence": 0.95}}
+
+Input: "Add John to the group"
+Output: {{"intent": "add_member", "participants": ["John"], "clarification_needed": false, "confidence": 0.95}}
+
+Input: "Include Priya in this group"
+Output: {{"intent": "add_member", "participants": ["Priya"], "clarification_needed": false, "confidence": 0.9}}
+
+Input: "Add Rahul, Amit and Sarah to the Roommates group"
+Output: {{"intent": "add_member", "participants": ["Rahul", "Amit", "Sarah"], "group": "Roommates", "clarification_needed": false, "confidence": 0.95}}
 
 Now parse the user's message. Be flexible and make your best guess:"""
 

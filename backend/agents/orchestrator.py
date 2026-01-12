@@ -51,6 +51,7 @@ class AgentOrchestrator:
             "settle": self._handle_settle,
             "add_person": self._handle_add_person,
             "create_group": self._handle_create_group,
+            "add_member": self._handle_add_member,
             "query": self._handle_query,
             "reminder": self._handle_reminder,
             "undo": self._handle_undo,
@@ -505,6 +506,77 @@ class AgentOrchestrator:
             "group_id": group.id,
             "success": True
         }
+    
+    async def _handle_add_member(self, user_id: int, intent: Dict,
+                                  context: Dict = None) -> Dict[str, Any]:
+        """Handle adding members to an existing group."""
+        participants = intent.get("participants", [])
+        group_name = intent.get("group")
+        
+        if not participants:
+            return {
+                "response": "Who would you like to add? Please specify the names.",
+                "needs_clarification": True,
+                "success": False
+            }
+        
+        # Find the most recent group created by user, or specified group
+        if group_name:
+            query = select(Group).where(
+                Group.name.ilike(f"%{group_name}%"),
+                Group.created_by_id == user_id
+            )
+        else:
+            # Get most recent group created by user
+            query = select(Group).where(
+                Group.created_by_id == user_id
+            ).order_by(Group.created_at.desc()).limit(1)
+        
+        result = await self.db.execute(query)
+        group = result.scalar_one_or_none()
+        
+        if not group:
+            return {
+                "response": "I couldn't find a group to add members to. Please create a group first or specify the group name.",
+                "success": False
+            }
+        
+        # Add each participant
+        from models import group_members
+        added_names = []
+        for name in participants:
+            if name.lower() not in ["me", "i"]:
+                uid = await self._get_or_create_user_by_name(name, create_if_missing=True)
+                # Check if already a member
+                check_query = select(group_members).where(
+                    group_members.c.group_id == group.id,
+                    group_members.c.user_id == uid
+                )
+                existing = await self.db.execute(check_query)
+                if not existing.first():
+                    stmt = group_members.insert().values(group_id=group.id, user_id=uid)
+                    await self.db.execute(stmt)
+                    added_names.append(name)
+        
+        await self.db.commit()
+        
+        if not added_names:
+            return {
+                "response": "Those members are already in the group!",
+                "success": True
+            }
+        
+        if len(added_names) == 1:
+            return {
+                "response": f"Added {added_names[0]} to '{group.name}'!",
+                "success": True
+            }
+        else:
+            names_str = ", ".join(added_names[:-1]) + f" and {added_names[-1]}"
+            return {
+                "response": f"Added {names_str} to '{group.name}'!",
+                "success": True
+            }
     
     async def _handle_query(self, user_id: int, intent: Dict,
                              context: Dict = None) -> Dict[str, Any]:
