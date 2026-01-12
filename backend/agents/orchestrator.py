@@ -56,6 +56,7 @@ class AgentOrchestrator:
             "list_groups": self._handle_list_groups,
             "view_group": self._handle_view_group,
             "remove_member": self._handle_remove_member,
+            "delete_expense": self._handle_delete_expense,
             "query": self._handle_query,
             "reminder": self._handle_reminder,
             "undo": self._handle_undo,
@@ -735,6 +736,52 @@ class AgentOrchestrator:
             "success": True
         }
     
+    async def _handle_delete_expense(self, user_id: int, intent: Dict,
+                                      context: Dict = None) -> Dict[str, Any]:
+        """Handle deleting an expense."""
+        from models import Expense, ExpenseSplit
+        
+        description = intent.get("description")
+        
+        # Find the expense to delete
+        if description:
+            query = select(Expense).where(
+                Expense.payer_id == user_id,
+                Expense.description.ilike(f"%{description}%")
+            ).order_by(Expense.date.desc()).limit(1)
+        else:
+            # Get most recent expense by user
+            query = select(Expense).where(
+                Expense.payer_id == user_id
+            ).order_by(Expense.date.desc()).limit(1)
+        
+        result = await self.db.execute(query)
+        expense = result.scalar_one_or_none()
+        
+        if not expense:
+            return {
+                "response": "I couldn't find an expense to delete.",
+                "success": False
+            }
+        
+        expense_desc = expense.description
+        expense_amount = expense.amount
+        
+        # Delete splits first
+        delete_splits = select(ExpenseSplit).where(ExpenseSplit.expense_id == expense.id)
+        splits_result = await self.db.execute(delete_splits)
+        for split in splits_result.scalars().all():
+            await self.db.delete(split)
+        
+        # Delete the expense
+        await self.db.delete(expense)
+        await self.db.commit()
+        
+        return {
+            "response": f"Deleted expense '{expense_desc}' (₹{expense_amount:,.0f}).",
+            "success": True
+        }
+    
     async def _handle_query(self, user_id: int, intent: Dict,
                              context: Dict = None) -> Dict[str, Any]:
         """Handle general queries about expenses."""
@@ -945,30 +992,37 @@ Provide a helpful, conversational response to their query."""
     async def _handle_help(self, user_id: int, intent: Dict,
                             context: Dict = None) -> Dict[str, Any]:
         """Handle help requests."""
-        help_text = """Here's what I can do for you:
+        help_text = """👋 **Here's everything I can do:**
 
-**Adding Expenses:**
-• "Split ₹1200 dinner with Amit and Sarah"
+**💰 Expenses:**
+• "Split ₹1200 dinner with Amit"
 • "Rahul owes me 500"
-• "Add rent expense, split equally with roommates"
-
-**Checking Balances:**
-• "Who owes me money?"
-• "What's my balance with Rahul?"
 • "Show my expenses"
+• "Delete last expense"
 
-**Settling Up:**
-• "Settle with Amit"
-• "Pay Rahul ₹500"
+**📊 Balances:**
+• "Who owes me money?"
+• "What's my balance?"
+• "Settle with Rahul"
 
-**Groups & People:**
-• "Add Priya to my contacts"
+**👥 Groups:**
 • "Create a group called Roommates"
+• "Show my groups"
+• "Who's in Roommates?"
+• "Add Priya to Roommates"
+• "Remove Bob from the group"
 
-**Reminders:**
+**✏️ Edit & Undo:**
+• "Change amount to 1000"
+• "Undo"
+• "Remove Amit from that expense"
+
+**🔔 Other:**
 • "Remind Rahul to pay me"
+• "Has Bob joined yet?"
+• "Explain that"
 
-Just chat naturally and I'll figure out what you need! 💬"""
+Just chat naturally! 💬"""
         
         return {
             "response": help_text,

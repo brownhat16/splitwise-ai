@@ -69,7 +69,8 @@ INTENT TYPES:
 16. "list_groups" - Show/list groups ("show my groups", "list groups", "what groups am I in")
 17. "view_group" - View group details or members ("who's in Roommates", "show Roommates group")
 18. "remove_member" - Remove someone from a group ("remove Bob from Roommates")
-19. "unclear" - ONLY use this if you truly cannot guess the intent
+19. "delete_expense" - Delete an expense ("delete last expense", "remove that expense", "cancel expense")
+20. "unclear" - ONLY use this if you truly cannot guess the intent
 
 EMAIL RESPONSE PATTERNS:
 - If input contains email addresses (format: xxx@xxx.xxx), treat as "provide_emails" intent
@@ -254,6 +255,15 @@ Output: {{"intent": "remove_member", "participant": "Bob", "group": "Roommates",
 
 Input: "Take Priya out of the group"
 Output: {{"intent": "remove_member", "participant": "Priya", "clarification_needed": false, "confidence": 0.9}}
+
+Input: "Delete last expense"
+Output: {{"intent": "delete_expense", "clarification_needed": false, "confidence": 0.95}}
+
+Input: "Remove that expense"
+Output: {{"intent": "delete_expense", "clarification_needed": false, "confidence": 0.9}}
+
+Input: "Cancel the dinner expense"
+Output: {{"intent": "delete_expense", "description": "dinner", "clarification_needed": false, "confidence": 0.9}}
 
 Now parse the user's message. Be flexible and make your best guess:"""
 
