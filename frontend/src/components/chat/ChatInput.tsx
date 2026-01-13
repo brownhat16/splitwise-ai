@@ -45,8 +45,8 @@ export default function ChatInput({
     };
 
     return (
-        <div className="p-4 bg-background/80 backdrop-blur-md border-t border-border/50 sticky bottom-0 z-40">
-            <div className="max-w-4xl mx-auto relative flex items-end gap-2 p-2 bg-muted/40 border border-input focus-within:ring-2 focus-within:ring-primary/20 focus-within:border-primary/50 rounded-3xl transition-all duration-200">
+        <div className="p-3 sm:p-4 bg-background/95 backdrop-blur-xl border-t border-border sticky bottom-0 z-40 pb-safe">
+            <div className="max-w-4xl mx-auto relative flex items-end gap-2 p-1.5 sm:p-2 bg-muted/40 border border-input focus-within:ring-2 focus-within:ring-primary/20 focus-within:border-primary/50 rounded-2xl sm:rounded-3xl transition-all duration-200">
                 <textarea
                     ref={textareaRef}
                     value={input}
