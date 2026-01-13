@@ -2,125 +2,146 @@
 
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
-import { PlusIcon, ChevronRightIcon, UsersIcon } from '@heroicons/react/24/outline';
+import { Plus, ChevronRight, Users, RefreshCw } from 'lucide-react';
 import FloatingAIButton from '@/components/layout/FloatingAIButton';
+import EmptyState from '@/components/ui/EmptyState';
+import { SkeletonList } from '@/components/ui/Skeleton';
 import api, { GroupData } from '@/lib/api';
+import { cn } from '@/lib/utils';
+import { motion } from 'framer-motion';
+
+function getGroupEmoji(name: string) {
+    const nameLower = name.toLowerCase();
+    if (nameLower.includes('roommate') || nameLower.includes('home')) return '🏠';
+    if (nameLower.includes('trip') || nameLower.includes('travel') || nameLower.includes('vacation')) return '🏖️';
+    if (nameLower.includes('lunch') || nameLower.includes('office') || nameLower.includes('work')) return '🍱';
+    if (nameLower.includes('family')) return '👨‍👩‍👧‍👦';
+    if (nameLower.includes('friend')) return '🎉';
+    if (nameLower.includes('dinner') || nameLower.includes('food')) return '🍽️';
+    return '👥';
+}
 
 export default function GroupsPage() {
     const [groups, setGroups] = useState<GroupData[]>([]);
     const [loading, setLoading] = useState(true);
 
+    const fetchGroups = async () => {
+        setLoading(true);
+        const data = await api.getGroups();
+        setGroups(data.groups);
+        setLoading(false);
+    };
+
     useEffect(() => {
-        const fetchGroups = async () => {
-            setLoading(true);
-            const data = await api.getGroups();
-            setGroups(data.groups);
-            setLoading(false);
-        };
         fetchGroups();
     }, []);
 
     return (
-        <div className="min-h-screen bg-slate-50 dark:bg-slate-950">
+        <div className="min-h-screen bg-background pb-20 md:pl-72 pt-16 md:pt-0">
             {/* Header */}
-            <header className="sticky top-0 z-10 bg-white dark:bg-slate-900 border-b border-slate-200 dark:border-slate-700">
-                <div className="flex items-center justify-between px-4 h-14">
-                    <h1 className="text-lg font-semibold text-slate-800 dark:text-white">Groups</h1>
-                    <Link
-                        href="/?message=Create a new group"
-                        className="p-2 text-indigo-600 hover:text-indigo-700 dark:text-indigo-400"
-                    >
-                        <PlusIcon className="w-5 h-5" />
-                    </Link>
+            <header className="sticky top-0 z-10 bg-background/95 backdrop-blur-xl border-b border-border">
+                <div className="max-w-4xl mx-auto px-4 sm:px-6 py-4">
+                    <div className="flex items-center justify-between">
+                        <div>
+                            <h1 className="text-2xl font-bold text-foreground">Groups</h1>
+                            <p className="text-sm text-muted-foreground">
+                                {groups.length} {groups.length === 1 ? 'group' : 'groups'} created
+                            </p>
+                        </div>
+                        <div className="flex items-center gap-2">
+                            <button
+                                onClick={fetchGroups}
+                                disabled={loading}
+                                className="p-2.5 rounded-xl bg-secondary text-secondary-foreground hover:bg-secondary/80 transition-colors disabled:opacity-50"
+                                aria-label="Refresh"
+                            >
+                                <RefreshCw className={cn("w-5 h-5", loading && "animate-spin")} />
+                            </button>
+                            <Link
+                                href="/?message=Create a new group"
+                                className="p-2.5 rounded-xl bg-primary text-primary-foreground hover:bg-primary/90 transition-all shadow-lg shadow-primary/20"
+                                aria-label="Create group"
+                            >
+                                <Plus className="w-5 h-5" />
+                            </Link>
+                        </div>
+                    </div>
                 </div>
             </header>
 
-            {/* Loading state */}
-            {loading && (
-                <div className="flex justify-center items-center py-20">
-                    <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-600"></div>
-                </div>
-            )}
+            {/* Content */}
+            <main className="max-w-4xl mx-auto px-4 sm:px-6 py-6">
+                {/* Loading state */}
+                {loading && <SkeletonList count={4} />}
 
-            {/* Group List */}
-            {!loading && (
-                <div className="px-4 py-4 space-y-3">
-                    {groups.map((group) => (
-                        <Link
-                            key={group.id}
-                            href={`/groups/${group.id}`}
-                            className="block p-4 bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-700 hover:border-indigo-300 dark:hover:border-indigo-600 transition-colors"
-                        >
-                            <div className="flex items-center gap-4">
-                                {/* Group Icon */}
-                                <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-indigo-500 to-purple-500 flex items-center justify-center text-white text-xl">
-                                    {group.name.toLowerCase().includes('roommate') ? '🏠' :
-                                        group.name.toLowerCase().includes('trip') ? '🏖️' :
-                                            group.name.toLowerCase().includes('lunch') || group.name.toLowerCase().includes('office') ? '🍱' :
-                                                group.name.toLowerCase().includes('family') ? '👨‍👩‍👧‍👦' : '👥'}
-                                </div>
-
-                                {/* Group Details */}
-                                <div className="flex-1 min-w-0">
-                                    <p className="font-semibold text-slate-800 dark:text-white">
-                                        {group.name}
-                                    </p>
-                                    <div className="flex items-center gap-2 text-sm text-slate-500 dark:text-slate-400">
-                                        <UsersIcon className="w-4 h-4" />
-                                        <span>{group.member_count} members</span>
-                                    </div>
-                                </div>
-
-                                <ChevronRightIcon className="w-4 h-4 text-slate-400" />
-                            </div>
-
-                            {/* Member avatars */}
-                            <div className="flex mt-3 -space-x-2">
-                                {group.members.slice(0, 5).map((member, idx) => (
-                                    <div
-                                        key={idx}
-                                        className="w-8 h-8 rounded-full bg-slate-200 dark:bg-slate-700 border-2 border-white dark:border-slate-900 flex items-center justify-center text-xs font-medium text-slate-600 dark:text-slate-300"
-                                    >
-                                        {member.name.charAt(0)}
-                                    </div>
-                                ))}
-                                {group.members.length > 5 && (
-                                    <div className="w-8 h-8 rounded-full bg-slate-100 dark:bg-slate-800 border-2 border-white dark:border-slate-900 flex items-center justify-center text-xs font-medium text-slate-500">
-                                        +{group.members.length - 5}
-                                    </div>
-                                )}
-                            </div>
-                        </Link>
-                    ))}
-
-                    {/* Empty state */}
-                    {groups.length === 0 && (
-                        <div className="text-center py-12">
-                            <div className="text-6xl mb-4">👥</div>
-                            <h3 className="text-xl font-semibold text-slate-800 dark:text-white mb-2">
-                                No groups yet
-                            </h3>
-                            <p className="text-slate-500 dark:text-slate-400 mb-6">
-                                Create a group to track shared expenses
-                            </p>
-                            <div className="flex flex-col sm:flex-row gap-3 justify-center">
+                {/* Group List */}
+                {!loading && groups.length > 0 && (
+                    <div className="space-y-4">
+                        {groups.map((group, index) => (
+                            <motion.div
+                                key={group.id}
+                                initial={{ opacity: 0, y: 20 }}
+                                animate={{ opacity: 1, y: 0 }}
+                                transition={{ delay: index * 0.1 }}
+                            >
                                 <Link
-                                    href="/groups/new"
-                                    className="inline-flex items-center px-6 py-3 bg-indigo-600 text-white font-medium rounded-full hover:bg-indigo-700 transition-colors"
+                                    href={`/groups/${group.id}`}
+                                    className="group block p-5 bg-card rounded-2xl border border-border hover:border-primary/30 hover:shadow-lg hover:shadow-primary/5 transition-all duration-200"
                                 >
-                                    Create Group
+                                    <div className="flex items-center gap-4">
+                                        {/* Group Icon */}
+                                        <div className="w-14 h-14 rounded-xl bg-gradient-to-br from-primary to-accent flex items-center justify-center text-2xl shadow-lg group-hover:scale-110 transition-transform">
+                                            {getGroupEmoji(group.name)}
+                                        </div>
+
+                                        {/* Group Details */}
+                                        <div className="flex-1 min-w-0">
+                                            <p className="font-semibold text-lg text-foreground group-hover:text-primary transition-colors">
+                                                {group.name}
+                                            </p>
+                                            <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                                                <Users className="w-4 h-4" />
+                                                <span>{group.member_count} member{group.member_count !== 1 ? 's' : ''}</span>
+                                            </div>
+                                        </div>
+
+                                        <ChevronRight className="w-5 h-5 text-muted-foreground group-hover:text-primary group-hover:translate-x-1 transition-all" />
+                                    </div>
+
+                                    {/* Member avatars */}
+                                    <div className="flex mt-4 -space-x-2">
+                                        {group.members.slice(0, 5).map((member, idx) => (
+                                            <div
+                                                key={idx}
+                                                className="w-9 h-9 rounded-full bg-secondary border-2 border-card flex items-center justify-center text-sm font-semibold text-secondary-foreground"
+                                                title={member.name}
+                                            >
+                                                {member.name.charAt(0).toUpperCase()}
+                                            </div>
+                                        ))}
+                                        {group.members.length > 5 && (
+                                            <div className="w-9 h-9 rounded-full bg-muted border-2 border-card flex items-center justify-center text-xs font-medium text-muted-foreground">
+                                                +{group.members.length - 5}
+                                            </div>
+                                        )}
+                                    </div>
                                 </Link>
-                                <Link
-                                    href="/"
-                                    className="inline-flex items-center px-6 py-3 bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-200 font-medium rounded-full hover:bg-slate-300 dark:hover:bg-slate-600 transition-colors"
-                                >
-                                    Use AI Chat
-                                </Link>
-                            </div>
-                        </div>
-                    )}
-                </div>
-            )}
+                            </motion.div>
+                        ))}
+                    </div>
+                )}
+
+                {/* Empty state */}
+                {!loading && groups.length === 0 && (
+                    <EmptyState
+                        type="groups"
+                        title="No groups yet"
+                        description="Create a group to track shared expenses with friends, roommates, or travel buddies. Groups make splitting costs easy!"
+                        actionLabel="Create Group"
+                        actionHref="/?message=Create a new group"
+                    />
+                )}
+            </main>
 
             <FloatingAIButton />
         </div>

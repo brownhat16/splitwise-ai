@@ -37,7 +37,7 @@ export default function DashboardPage() {
     const peopleYouOwe = balance?.you_owe || [];
 
     return (
-        <div className="min-h-screen bg-background pb-20 md:pl-64 pt-6">
+        <div className="min-h-screen bg-background pb-20 md:pl-72 pt-16 md:pt-6">
             <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 space-y-8 animate-fade-in">
                 {/* Header */}
                 <div className="flex items-center justify-between">

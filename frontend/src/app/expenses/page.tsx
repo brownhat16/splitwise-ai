@@ -2,9 +2,13 @@
 
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
-import { FunnelIcon, ChevronRightIcon } from '@heroicons/react/24/outline';
+import { Filter, ChevronRight, RefreshCw } from 'lucide-react';
 import FloatingAIButton from '@/components/layout/FloatingAIButton';
+import EmptyState from '@/components/ui/EmptyState';
+import { SkeletonList } from '@/components/ui/Skeleton';
 import api, { ExpenseData } from '@/lib/api';
+import { cn } from '@/lib/utils';
+import { motion } from 'framer-motion';
 
 // Group expenses by date
 function groupExpensesByDate(expenses: ExpenseData[]) {
@@ -36,18 +40,33 @@ function formatDate(dateStr: string) {
     });
 }
 
+function getExpenseEmoji(description: string) {
+    const desc = description.toLowerCase();
+    if (desc.includes('dinner') || desc.includes('food') || desc.includes('lunch')) return '🍽️';
+    if (desc.includes('uber') || desc.includes('taxi') || desc.includes('ride')) return '🚗';
+    if (desc.includes('hotel') || desc.includes('stay')) return '🏨';
+    if (desc.includes('groceries') || desc.includes('grocery')) return '🛒';
+    if (desc.includes('pizza')) return '🍕';
+    if (desc.includes('coffee')) return '☕';
+    if (desc.includes('movie') || desc.includes('theater')) return '🎬';
+    if (desc.includes('rent')) return '🏠';
+    if (desc.includes('bill') || desc.includes('utility')) return '📱';
+    return '💰';
+}
+
 export default function ExpensesPage() {
     const [filter, setFilter] = useState<'all' | 'owed' | 'owing'>('all');
     const [expenses, setExpenses] = useState<ExpenseData[]>([]);
     const [loading, setLoading] = useState(true);
 
+    const fetchExpenses = async () => {
+        setLoading(true);
+        const data = await api.getExpenses();
+        setExpenses(data.expenses);
+        setLoading(false);
+    };
+
     useEffect(() => {
-        const fetchExpenses = async () => {
-            setLoading(true);
-            const data = await api.getExpenses();
-            setExpenses(data.expenses);
-            setLoading(false);
-        };
         fetchExpenses();
     }, []);
 
@@ -55,124 +74,128 @@ export default function ExpensesPage() {
     const userName = typeof window !== 'undefined' ? localStorage.getItem('userName') || 'You' : 'You';
 
     return (
-        <div className="min-h-screen bg-slate-50 dark:bg-slate-950">
+        <div className="min-h-screen bg-background pb-20 md:pl-72 pt-16 md:pt-0">
             {/* Header */}
-            <header className="sticky top-0 z-10 bg-white dark:bg-slate-900 border-b border-slate-200 dark:border-slate-700">
-                <div className="flex items-center justify-between px-4 h-14">
-                    <h1 className="text-lg font-semibold text-slate-800 dark:text-white">Expenses</h1>
-                    <button className="p-2 text-slate-500 hover:text-slate-700 dark:hover:text-slate-200">
-                        <FunnelIcon className="w-5 h-5" />
-                    </button>
-                </div>
-
-                {/* Filter tabs */}
-                <div className="flex px-4 pb-3 gap-2">
-                    {(['all', 'owed', 'owing'] as const).map((f) => (
+            <header className="sticky top-0 z-10 bg-background/95 backdrop-blur-xl border-b border-border">
+                <div className="max-w-4xl mx-auto px-4 sm:px-6 py-4">
+                    <div className="flex items-center justify-between mb-4">
+                        <div>
+                            <h1 className="text-2xl font-bold text-foreground">Expenses</h1>
+                            <p className="text-sm text-muted-foreground">
+                                {expenses.length} {expenses.length === 1 ? 'expense' : 'expenses'} recorded
+                            </p>
+                        </div>
                         <button
-                            key={f}
-                            onClick={() => setFilter(f)}
-                            className={`px-4 py-1.5 text-sm font-medium rounded-full transition-colors ${filter === f
-                                ? 'bg-indigo-600 text-white'
-                                : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700'
-                                }`}
+                            onClick={fetchExpenses}
+                            disabled={loading}
+                            className="p-2.5 rounded-xl bg-secondary text-secondary-foreground hover:bg-secondary/80 transition-colors disabled:opacity-50"
+                            aria-label="Refresh"
                         >
-                            {f === 'all' && 'All'}
-                            {f === 'owed' && 'Owed to me'}
-                            {f === 'owing' && 'I owe'}
+                            <RefreshCw className={cn("w-5 h-5", loading && "animate-spin")} />
                         </button>
-                    ))}
+                    </div>
+
+                    {/* Filter tabs */}
+                    <div className="flex gap-2">
+                        {(['all', 'owed', 'owing'] as const).map((f) => (
+                            <button
+                                key={f}
+                                onClick={() => setFilter(f)}
+                                className={cn(
+                                    "px-4 py-2 text-sm font-medium rounded-xl transition-all",
+                                    filter === f
+                                        ? 'bg-primary text-primary-foreground shadow-lg shadow-primary/20'
+                                        : 'bg-secondary text-secondary-foreground hover:bg-secondary/80'
+                                )}
+                            >
+                                {f === 'all' && 'All'}
+                                {f === 'owed' && 'Owed to me'}
+                                {f === 'owing' && 'I owe'}
+                            </button>
+                        ))}
+                    </div>
                 </div>
             </header>
 
-            {/* Loading state */}
-            {loading && (
-                <div className="flex justify-center items-center py-20">
-                    <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-600"></div>
-                </div>
-            )}
+            {/* Content */}
+            <main className="max-w-4xl mx-auto px-4 sm:px-6 py-6">
+                {/* Loading state */}
+                {loading && <SkeletonList count={5} />}
 
-            {/* Expense List */}
-            {!loading && (
-                <div className="px-4 py-4 space-y-6">
-                    {groupedExpenses.map(([date, dateExpenses]) => (
-                        <section key={date}>
-                            <h2 className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-2 px-1">
-                                {formatDate(date)}
-                            </h2>
-                            <div className="space-y-2">
-                                {dateExpenses.map((expense) => (
-                                    <Link
-                                        key={expense.id}
-                                        href={`/expenses/${expense.id}`}
-                                        className="flex items-center gap-4 p-4 bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-700 hover:border-indigo-300 dark:hover:border-indigo-600 transition-colors"
-                                    >
-                                        {/* Icon */}
-                                        <div className="w-10 h-10 rounded-full bg-indigo-100 dark:bg-indigo-900 flex items-center justify-center text-lg">
-                                            {expense.description.toLowerCase().includes('dinner') || expense.description.toLowerCase().includes('food') ? '🍽️' :
-                                                expense.description.toLowerCase().includes('uber') || expense.description.toLowerCase().includes('taxi') ? '🚗' :
-                                                    expense.description.toLowerCase().includes('hotel') ? '🏨' :
-                                                        expense.description.toLowerCase().includes('groceries') ? '🛒' :
-                                                            expense.description.toLowerCase().includes('pizza') ? '🍕' : '💰'}
-                                        </div>
+                {/* Expense List */}
+                {!loading && groupedExpenses.length > 0 && (
+                    <div className="space-y-8">
+                        {groupedExpenses.map(([date, dateExpenses], groupIndex) => (
+                            <motion.section
+                                key={date}
+                                initial={{ opacity: 0, y: 20 }}
+                                animate={{ opacity: 1, y: 0 }}
+                                transition={{ delay: groupIndex * 0.1 }}
+                            >
+                                <h2 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-3 px-1">
+                                    {formatDate(date)}
+                                </h2>
+                                <div className="space-y-3">
+                                    {dateExpenses.map((expense, expenseIndex) => (
+                                        <motion.div
+                                            key={expense.id}
+                                            initial={{ opacity: 0, x: -10 }}
+                                            animate={{ opacity: 1, x: 0 }}
+                                            transition={{ delay: groupIndex * 0.1 + expenseIndex * 0.05 }}
+                                        >
+                                            <Link
+                                                href={`/expenses/${expense.id}`}
+                                                className="group flex items-center gap-4 p-4 bg-card rounded-2xl border border-border hover:border-primary/30 hover:shadow-lg hover:shadow-primary/5 transition-all duration-200"
+                                            >
+                                                {/* Icon */}
+                                                <div className="w-12 h-12 rounded-xl bg-primary/10 flex items-center justify-center text-xl group-hover:scale-110 transition-transform">
+                                                    {getExpenseEmoji(expense.description)}
+                                                </div>
 
-                                        {/* Details */}
-                                        <div className="flex-1 min-w-0">
-                                            <p className="font-medium text-slate-800 dark:text-white truncate">
-                                                {expense.description}
-                                            </p>
-                                            <p className="text-sm text-slate-500 dark:text-slate-400">
-                                                {expense.payer?.name === userName ? 'You paid' : `${expense.payer?.name || 'Someone'} paid`}
-                                                {expense.group && ` • ${expense.group.name}`}
-                                            </p>
-                                        </div>
+                                                {/* Details */}
+                                                <div className="flex-1 min-w-0">
+                                                    <p className="font-semibold text-foreground truncate group-hover:text-primary transition-colors">
+                                                        {expense.description}
+                                                    </p>
+                                                    <p className="text-sm text-muted-foreground">
+                                                        {expense.payer?.name === userName ? 'You paid' : `${expense.payer?.name || 'Someone'} paid`}
+                                                        {expense.group && ` • ${expense.group.name}`}
+                                                    </p>
+                                                </div>
 
-                                        {/* Amount */}
-                                        <div className="text-right">
-                                            <p className="font-bold text-slate-800 dark:text-white">
-                                                ₹{expense.amount.toLocaleString()}
-                                            </p>
-                                            {expense.payer?.name === userName && expense.splits.length > 1 && (
-                                                <p className="text-xs text-emerald-600 dark:text-emerald-400">
-                                                    you lent ₹{(expense.amount - (expense.splits.find(s => s.user.name === userName)?.amount || 0)).toLocaleString()}
-                                                </p>
-                                            )}
-                                        </div>
+                                                {/* Amount */}
+                                                <div className="text-right">
+                                                    <p className="text-lg font-bold text-foreground">
+                                                        ₹{expense.amount.toLocaleString()}
+                                                    </p>
+                                                    {expense.payer?.name === userName && expense.splits.length > 1 && (
+                                                        <p className="text-xs text-emerald-600 dark:text-emerald-400">
+                                                            you lent ₹{(expense.amount - (expense.splits.find(s => s.user.name === userName)?.amount || 0)).toLocaleString()}
+                                                        </p>
+                                                    )}
+                                                </div>
 
-                                        <ChevronRightIcon className="w-4 h-4 text-slate-400" />
-                                    </Link>
-                                ))}
-                            </div>
-                        </section>
-                    ))}
+                                                <ChevronRight className="w-5 h-5 text-muted-foreground group-hover:text-primary group-hover:translate-x-1 transition-all" />
+                                            </Link>
+                                        </motion.div>
+                                    ))}
+                                </div>
+                            </motion.section>
+                        ))}
+                    </div>
+                )}
 
-                    {/* Empty state */}
-                    {groupedExpenses.length === 0 && (
-                        <div className="text-center py-12">
-                            <div className="text-6xl mb-4">📝</div>
-                            <h3 className="text-xl font-semibold text-slate-800 dark:text-white mb-2">
-                                No expenses yet
-                            </h3>
-                            <p className="text-slate-500 dark:text-slate-400 mb-6">
-                                Start by adding your first expense
-                            </p>
-                            <div className="flex flex-col sm:flex-row gap-3 justify-center">
-                                <Link
-                                    href="/expenses/new"
-                                    className="inline-flex items-center px-6 py-3 bg-indigo-600 text-white font-medium rounded-full hover:bg-indigo-700 transition-colors"
-                                >
-                                    Add Expense
-                                </Link>
-                                <Link
-                                    href="/"
-                                    className="inline-flex items-center px-6 py-3 bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-200 font-medium rounded-full hover:bg-slate-300 dark:hover:bg-slate-600 transition-colors"
-                                >
-                                    Use AI Chat
-                                </Link>
-                            </div>
-                        </div>
-                    )}
-                </div>
-            )}
+                {/* Empty state */}
+                {!loading && groupedExpenses.length === 0 && (
+                    <EmptyState
+                        type="expenses"
+                        title="No expenses yet"
+                        description="Start tracking your shared expenses. Add your first expense manually or use the AI chat to split bills with friends."
+                        actionLabel="Add Expense"
+                        actionHref="/expenses/new"
+                    />
+                )}
+            </main>
 
             <FloatingAIButton />
         </div>
