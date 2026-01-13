@@ -1369,8 +1369,39 @@ I track who owes whom. If you paid for dinner and split it with friends, they ow
         declined = intent.get("declined", False)
         
         if declined:
+            # User declined to provide emails. Try to create placeholders for any unknown users 
+            # from the previous context so the expense interaction can continue seamlessly.
+            created_placeholders = []
+            if context and context.get("conversation_history"):
+                for turn in reversed(context["conversation_history"]):
+                    if turn.get("clarification_type") == "invite_emails":
+                        unknown_names = turn.get("unknown_users", [])
+                        for name in unknown_names:
+                            # Create placeholder without email
+                            # We use a dummy email or just standard placeholder
+                            from models import User
+                            
+                            # Check if exists first (maybe created in parallel?)
+                            existing = await self._get_or_create_user_by_name(name, create_if_missing=False)
+                            if not existing:
+                                # Create invite/placeholder with no email (or dummy)
+                                # Actually _create_invite_and_placeholder requires email?
+                                # Let's see... usually we want a User record with is_placeholder=True
+                                # We'll use a dummy email format like "{name}_placeholder_{timestamp}@splitwise.ai"
+                                import time
+                                dummy_email = f"{name.lower().replace(' ', '')}_{int(time.time())}@placeholder.local"
+                                await self._create_invite_and_placeholder(user_id, name, dummy_email)
+                                created_placeholders.append(name)
+                        break
+            
+            if created_placeholders:
+                return {
+                    "response": f"Okay, I've created placeholders for {', '.join(created_placeholders)} without emails. You can just ask to split the expense again.",
+                    "success": True
+                }
+            
             return {
-                "response": "Okay, I'll skip sending invites for now. You can add them later.",
+                "response": "Okay, I'll skip sending invites for now.",
                 "success": True
             }
         
