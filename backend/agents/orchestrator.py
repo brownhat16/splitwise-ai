@@ -112,6 +112,10 @@ class AgentOrchestrator:
         
         # Route to appropriate handler
         intent = intent_result.get("intent", "unclear")
+        
+        # Inject original message for context-aware handlers
+        intent_result["_original_message"] = message
+        
         handler = self.intent_handlers.get(intent, self._handle_unclear)
         
         try:
@@ -1537,6 +1541,21 @@ I track who owes whom. If you paid for dinner and split it with friends, they ow
     async def _handle_unclear(self, user_id: int, intent: Dict,
                                context: Dict = None) -> Dict[str, Any]:
         """Handle unclear intents."""
+        
+        # Check if this is a "No" response to a recent email request
+        original_message = intent.get("_original_message", "").lower().strip()
+        negative_keywords = ["no", "nope", "nah", "cancel", "skip", "don't", "dont", "later", "not now"]
+        
+        is_negative = any(kw in original_message for kw in negative_keywords) or original_message in negative_keywords
+        
+        if is_negative and context and context.get("conversation_history"):
+            # Check if last assistant message asked for emails
+            for turn in reversed(context["conversation_history"][-3:]):  # Check last 3 turns
+                if turn.get("clarification_type") == "invite_emails" or \
+                   "email" in turn.get("assistant", "").lower():
+                    # User is declining to provide emails - create placeholders
+                    return await self._handle_provide_emails(user_id, {"declined": True}, context)
+        
         return {
             "response": "I'm not sure I understood that. Could you rephrase? For example, you can say 'Split ₹500 with Rahul' or 'Who owes me money?'",
             "needs_clarification": True,
