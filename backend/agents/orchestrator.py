@@ -58,6 +58,7 @@ class AgentOrchestrator:
             "remove_member": self._handle_remove_member,
             "delete_expense": self._handle_delete_expense,
             "rename_group": self._handle_rename_group,
+            "delete_group": self._handle_delete_group,
             "query": self._handle_query,
             "reminder": self._handle_reminder,
             "undo": self._handle_undo,
@@ -811,6 +812,48 @@ class AgentOrchestrator:
         
         return {
             "response": f"Renamed '{old_name}' to '{new_name}'!",
+            "success": True
+        }
+    
+    async def _handle_delete_group(self, user_id: int, intent: Dict,
+                                    context: Dict = None) -> Dict[str, Any]:
+        """Handle deleting a group."""
+        group_name = intent.get("group")
+        
+        # Find the group
+        if group_name:
+            query = select(Group).where(
+                Group.name.ilike(f"%{group_name}%"),
+                Group.created_by_id == user_id
+            )
+        else:
+            # Get most recent group created by user
+            query = select(Group).where(
+                Group.created_by_id == user_id
+            ).order_by(Group.created_at.desc()).limit(1)
+        
+        result = await self.db.execute(query)
+        group = result.scalar_one_or_none()
+        
+        if not group:
+            return {
+                "response": "I couldn't find that group to delete.",
+                "success": False
+            }
+        
+        group_name = group.name
+        
+        # Delete group members first
+        from models import group_members
+        delete_members = group_members.delete().where(group_members.c.group_id == group.id)
+        await self.db.execute(delete_members)
+        
+        # Delete the group
+        await self.db.delete(group)
+        await self.db.commit()
+        
+        return {
+            "response": f"Deleted group '{group_name}'.",
             "success": True
         }
     
