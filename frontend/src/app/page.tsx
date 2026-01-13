@@ -138,13 +138,13 @@ export default function ChatPage() {
   };
 
   return (
-    <div className="flex flex-col h-screen">
+    <div className="flex flex-col h-screen md:pl-72 pt-16 md:pt-0">
       {/* Header */}
-      <header className="flex items-center justify-between px-4 h-14 bg-white dark:bg-slate-900 border-b border-slate-200 dark:border-slate-700">
-        <h1 className="text-lg font-semibold text-slate-800 dark:text-white">💬 Chat</h1>
+      <header className="flex items-center justify-between px-4 h-14 bg-background/95 backdrop-blur-xl border-b border-border">
+        <h1 className="text-lg font-semibold text-foreground">💬 Chat</h1>
         <button
           onClick={clearHistory}
-          className="p-2 text-slate-400 hover:text-red-500 transition-colors"
+          className="p-2 text-muted-foreground hover:text-destructive transition-colors rounded-lg hover:bg-destructive/10"
           title="Clear chat history"
         >
           <TrashIcon className="w-5 h-5" />
@@ -152,7 +152,7 @@ export default function ChatPage() {
       </header>
 
       {/* Messages */}
-      <div className="flex-1 overflow-y-auto px-4 py-4 space-y-4 bg-slate-50 dark:bg-slate-950">
+      <div className="flex-1 overflow-y-auto px-4 py-4 space-y-4 bg-background">
         {/* Date separator */}
         <div className="flex items-center justify-center">
           <span className="px-3 py-1 text-xs text-slate-500 dark:text-slate-400 bg-white dark:bg-slate-800 rounded-full shadow-sm">
