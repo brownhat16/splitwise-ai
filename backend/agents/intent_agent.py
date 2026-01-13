@@ -213,6 +213,12 @@ Output: {{"intent": "explain", "clarification_needed": false, "confidence": 0.9}
 Input: "Break it down"
 Output: {{"intent": "explain", "clarification_needed": false, "confidence": 0.85}}
 
+Input: "Explain the Dinner expense"
+Output: {{"intent": "explain", "topic": "specific_expense", "description": "Dinner", "clarification_needed": false, "confidence": 0.95}}
+
+Input: "How was the Uber split calculated?"
+Output: {{"intent": "explain", "topic": "specific_expense", "description": "Uber", "clarification_needed": false, "confidence": 0.9}}
+
 Input: "Did Bob join?"
 Output: {{"intent": "check_invite_status", "participants": ["Bob"], "clarification_needed": false, "confidence": 0.95}}
 

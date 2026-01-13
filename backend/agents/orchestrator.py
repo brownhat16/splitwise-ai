@@ -1251,8 +1251,54 @@ Just chat naturally! 💬"""
     
     async def _handle_explain(self, user_id: int, intent: Dict,
                                context: Dict = None) -> Dict[str, Any]:
-        """Explain the last action based on conversation history."""
-        # Look at conversation history for context
+        """Explain the last action or specific expense."""
+        
+        # Check if user asked about a specific expense
+        topic = intent.get("topic")
+        description = intent.get("description")
+        
+        if description or topic == "specific_expense":
+            # Search for the expense
+            from models import Expense, ExpenseSplit
+            stmt = select(Expense).where(
+                Expense.description.ilike(f"%{description}%") 
+                if description else True
+            ).order_by(Expense.date.desc()).limit(1)
+            
+            result = await self.db.execute(stmt)
+            expense = result.scalar_one_or_none()
+            
+            if expense:
+                splits_stmt = select(ExpenseSplit).where(ExpenseSplit.expense_id == expense.id)
+                splits_result = await self.db.execute(splits_stmt)
+                splits = splits_result.scalars().all()
+                
+                # Fetch participant names
+                participants_names = []
+                for s in splits:
+                    u = await self._get_user(s.user_id)
+                    participants_names.append(f"{u.name} (₹{s.amount:,.2f})")
+                
+                participants_str = ", ".join(participants_names)
+                payer = await self._get_user(expense.payer_id)
+                
+                explanation = f"""**Explanation for '{expense.description}':**
+                
+1. **Total Amount:** ₹{expense.amount:,.2f}
+2. **Paid By:** {payer.name}
+3. **Split Method:** {expense.split_type.value}
+4. **Breakdown:** 
+   - {participants_str}
+
+**Why this matters:**
+This expense updates the balances between {payer.name} and the other participants. For example, if you are in the split but didn't pay, you now owe {payer.name} your share."""
+                
+                return {
+                    "response": explanation,
+                    "success": True
+                }
+
+        # Look at conversation history for context (fallback)
         if context and context.get("conversation_history"):
             history = context["conversation_history"]
             
@@ -1263,9 +1309,9 @@ Just chat naturally! 💬"""
                 
                 if last_intent == "add_expense" and "successfully" in last_response.lower():
                     # Explain the expense split
-                    explanation = f"""**Here's what happened:**
+                    explanation = f"""**Here's what happened regarding the recent expense:**
 
-The expense was split using the **equal split** method, which means:
+The expense was split using the **equal split** method (default), which means:
 - The total amount is divided equally among all participants
 - Each person pays the same share
 - Any remainder (due to rounding) goes to the payer
