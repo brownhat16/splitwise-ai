@@ -132,8 +132,7 @@ class ApiClient {
 
             if (response.status === 401) {
                 this.logout();
-                window.location.href = '/login';
-                throw new Error('Unauthorized');
+                throw new Error('Session expired. Please log in again.');
             }
 
             if (!response.ok) {

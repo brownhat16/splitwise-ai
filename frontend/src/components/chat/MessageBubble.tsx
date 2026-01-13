@@ -106,7 +106,7 @@ export default function MessageBubble({ message, onAction, onQuickReply }: Messa
                                 {message.actions.map((action, idx) => (
                                     <button
                                         key={idx}
-                                        onClick={() => onAction?.(action)}
+                                        onClick={() => message.onActionClick ? message.onActionClick(action) : onAction?.(action)}
                                         className="px-3 py-1.5 text-xs font-medium bg-background text-muted-foreground rounded-full border border-border hover:bg-muted hover:text-foreground transition-colors"
                                     >
                                         {action}

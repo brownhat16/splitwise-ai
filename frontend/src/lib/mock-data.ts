@@ -42,6 +42,7 @@ export interface Message {
   actions?: string[];
   quickReplies?: string[];
   isThinking?: boolean;
+  onActionClick?: (action: string) => void;
 }
 
 // Mock Users
@@ -55,21 +56,21 @@ export const mockUsers: User[] = [
 
 // Mock Groups
 export const mockGroups: Group[] = [
-  { 
-    id: 1, 
-    name: 'Roommates', 
+  {
+    id: 1,
+    name: 'Roommates',
     members: [mockUsers[0], mockUsers[1], mockUsers[2]],
     description: 'Monthly rent and utilities'
   },
-  { 
-    id: 2, 
-    name: 'Goa Trip', 
+  {
+    id: 2,
+    name: 'Goa Trip',
     members: [mockUsers[0], mockUsers[1], mockUsers[3], mockUsers[4]],
     description: 'Trip expenses December 2025'
   },
-  { 
-    id: 3, 
-    name: 'Office Lunch', 
+  {
+    id: 3,
+    name: 'Office Lunch',
     members: [mockUsers[0], mockUsers[2], mockUsers[4]],
     description: 'Daily lunch splits'
   },
@@ -166,13 +167,13 @@ export const mockBalances: Balance[] = [
 ];
 
 // Calculate totals
-export const getTotalOwedToYou = () => 
+export const getTotalOwedToYou = () =>
   mockBalances.filter(b => b.amount > 0).reduce((sum, b) => sum + b.amount, 0);
 
-export const getTotalYouOwe = () => 
+export const getTotalYouOwe = () =>
   Math.abs(mockBalances.filter(b => b.amount < 0).reduce((sum, b) => sum + b.amount, 0));
 
-export const getNetBalance = () => 
+export const getNetBalance = () =>
   mockBalances.reduce((sum, b) => sum + b.amount, 0);
 
 // Initial chat messages

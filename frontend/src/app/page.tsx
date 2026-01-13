@@ -97,15 +97,30 @@ export default function ChatPage() {
 
         return [...filtered, aiMessage];
       });
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error:', error);
       setMessages(prev => {
         const filtered = prev.filter(m => !m.isThinking);
+
+        let errorMessageContent = "Sorry, I couldn't process that. Please try again.";
+        let actions: string[] | undefined = undefined;
+
+        if (error.message === 'Session expired. Please log in again.' || error.message.includes('401')) {
+          errorMessageContent = "Your session has expired. Please log in again to continue.";
+          actions = ['Log In'];
+        }
+
         const errorMessage: Message = {
           id: Date.now().toString(),
           type: 'ai',
-          content: "Sorry, I couldn't process that. Please try again.",
+          content: errorMessageContent,
           timestamp: new Date(),
+          actions: actions,
+          onActionClick: (action) => {
+            if (action === 'Log In') {
+              window.location.href = '/login';
+            }
+          }
         };
         return [...filtered, errorMessage];
       });
