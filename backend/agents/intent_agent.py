@@ -72,7 +72,10 @@ INTENT TYPES:
 19. "delete_expense" - Delete an expense ("delete last expense", "remove that expense", "cancel expense")
 20. "rename_group" - Rename a group ("name it as X", "call it X", "rename the group to X")
 21. "delete_group" - Delete a group ("delete Roommates group", "remove that group")
-22. "unclear" - ONLY use this if you truly cannot guess the intent
+22. "split_custom" - Unequal/custom split ("I paid 700, Amit paid 300", "split 60-40 with Amit")
+23. "group_balance" - Check balance in a specific group ("What's the balance in Roommates?", "Roommates balances")
+24. "thank" - User thanks the assistant ("thanks!", "thank you", "thx")
+25. "unclear" - ONLY use this if you truly cannot guess the intent
 
 EMAIL RESPONSE PATTERNS:
 - If input contains email addresses (format: xxx@xxx.xxx), treat as "provide_emails" intent
@@ -95,6 +98,7 @@ EXTRACT THESE FIELDS:
 - clarification_needed: boolean
 - clarification_question: question to ask if needed
 - confidence: 0-1 score
+- declined: boolean (for when user says "no", "cancel", "skip" to a request like emails)
 {users_context}
 
 EXAMPLES (showing flexible understanding):
@@ -281,6 +285,30 @@ Output: {{"intent": "delete_group", "group": "Roommates", "clarification_needed"
 
 Input: "Remove that group"
 Output: {{"intent": "delete_group", "clarification_needed": false, "confidence": 0.9}}
+
+Input: "I paid 700, Amit paid 300 for dinner"
+Output: {{"intent": "split_custom", "description": "dinner", "amount": 1000, "splits": [{{"name": "me", "amount": 700}}, {{"name": "Amit", "amount": 300}}], "clarification_needed": false, "confidence": 0.95}}
+
+Input: "Split 60-40 with Rahul for groceries ₹500"
+Output: {{"intent": "split_custom", "description": "groceries", "amount": 500, "splits": [{{"name": "me", "percentage": 60}}, {{"name": "Rahul", "percentage": 40}}], "clarification_needed": false, "confidence": 0.9}}
+
+Input: "What's the balance in Roommates?"
+Output: {{"intent": "group_balance", "group": "Roommates", "clarification_needed": false, "confidence": 0.95}}
+
+Input: "Roommates group balances"
+Output: {{"intent": "group_balance", "group": "Roommates", "clarification_needed": false, "confidence": 0.9}}
+
+Input: "Thanks!"
+Output: {{"intent": "thank", "clarification_needed": false, "confidence": 0.95}}
+
+Input: "Thank you so much"
+Output: {{"intent": "thank", "clarification_needed": false, "confidence": 0.95}}
+
+Input: "No, I don't have their email"
+Output: {{"intent": "provide_emails", "email_data": {{}}, "declined": true, "clarification_needed": false, "confidence": 0.95}}
+
+Input: "Skip this step"
+Output: {{"intent": "provide_emails", "email_data": {{}}, "declined": true, "clarification_needed": false, "confidence": 0.95}}
 
 Now parse the user's message. Be flexible and make your best guess:"""
 

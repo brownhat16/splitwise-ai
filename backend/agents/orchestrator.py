@@ -59,6 +59,9 @@ class AgentOrchestrator:
             "delete_expense": self._handle_delete_expense,
             "rename_group": self._handle_rename_group,
             "delete_group": self._handle_delete_group,
+            "split_custom": self._handle_split_custom,
+            "group_balance": self._handle_group_balance,
+            "thank": self._handle_thank,
             "query": self._handle_query,
             "reminder": self._handle_reminder,
             "undo": self._handle_undo,
@@ -857,6 +860,148 @@ class AgentOrchestrator:
             "success": True
         }
     
+    async def _handle_split_custom(self, user_id: int, intent: Dict,
+                                    context: Dict = None) -> Dict[str, Any]:
+        """Handle custom/unequal expense splits."""
+        from models import Expense, ExpenseSplit
+        
+        description = intent.get("description", "Custom expense")
+        total_amount = intent.get("amount", 0)
+        splits = intent.get("splits", [])
+        
+        if not splits or len(splits) < 2:
+            return {
+                "response": "I need at least 2 people with their amounts. Try: 'I paid 700, Amit paid 300 for dinner'",
+                "needs_clarification": True,
+                "success": False
+            }
+        
+        # Calculate amounts from percentages if needed
+        split_data = []
+        for s in splits:
+            name = s.get("name", "")
+            if "percentage" in s:
+                amount = (s["percentage"] / 100) * total_amount
+            else:
+                amount = s.get("amount", 0)
+            
+            if name.lower() in ["me", "i", "myself"]:
+                split_data.append({"user_id": user_id, "amount": amount, "name": "You"})
+            else:
+                uid = await self._get_or_create_user_by_name(name, create_if_missing=True)
+                split_data.append({"user_id": uid, "amount": amount, "name": name})
+        
+        # Calculate total if not provided
+        if total_amount == 0:
+            total_amount = sum(s["amount"] for s in split_data)
+        
+        # Find who paid (the one with highest amount is usually the payer)
+        payer_split = max(split_data, key=lambda x: x["amount"])
+        payer_id = payer_split["user_id"]
+        
+        # Create the expense
+        expense = Expense(
+            description=description,
+            amount=total_amount,
+            payer_id=payer_id,
+            created_by_id=user_id
+        )
+        self.db.add(expense)
+        await self.db.flush()
+        
+        # Create splits for each person (what they owe)
+        for s in split_data:
+            split = ExpenseSplit(
+                expense_id=expense.id,
+                user_id=s["user_id"],
+                amount=s["amount"]
+            )
+            self.db.add(split)
+        
+        await self.db.commit()
+        
+        # Format response
+        split_details = ", ".join([f"{s['name']}: ₹{s['amount']:,.0f}" for s in split_data])
+        
+        return {
+            "response": f"Added '{description}' (₹{total_amount:,.0f}) with custom split:\n{split_details}",
+            "expense_id": expense.id,
+            "success": True
+        }
+    
+    async def _handle_group_balance(self, user_id: int, intent: Dict,
+                                     context: Dict = None) -> Dict[str, Any]:
+        """Handle checking balance in a specific group."""
+        group_name = intent.get("group")
+        
+        if not group_name:
+            return {
+                "response": "Which group's balance would you like to see?",
+                "needs_clarification": True,
+                "success": False
+            }
+        
+        # Find the group
+        query = select(Group).where(Group.name.ilike(f"%{group_name}%"))
+        result = await self.db.execute(query)
+        group = result.scalar_one_or_none()
+        
+        if not group:
+            return {
+                "response": f"I couldn't find a group called '{group_name}'.",
+                "success": False
+            }
+        
+        # Get group members
+        from models import group_members, User
+        members_query = select(User).join(
+            group_members, User.id == group_members.c.user_id
+        ).where(group_members.c.group_id == group.id)
+        
+        members_result = await self.db.execute(members_query)
+        members = members_result.scalars().all()
+        
+        if not members:
+            return {
+                "response": f"The group '{group.name}' has no members yet.",
+                "success": True
+            }
+        
+        # Get balances between members
+        lines = [f"**{group.name} Group Balances:**\n"]
+        for member in members:
+            if member.id != user_id:
+                balance = await self.ledger_manager.get_balance_between_users(user_id, member.id)
+                if balance > 0.01:
+                    lines.append(f"• {member.name} owes you ₹{balance:,.0f}")
+                elif balance < -0.01:
+                    lines.append(f"• You owe {member.name} ₹{abs(balance):,.0f}")
+                else:
+                    lines.append(f"• {member.name}: settled ✅")
+        
+        if len(lines) == 1:
+            lines.append("All settled up! 🎉")
+        
+        return {
+            "response": "\n".join(lines),
+            "success": True
+        }
+    
+    async def _handle_thank(self, user_id: int, intent: Dict,
+                            context: Dict = None) -> Dict[str, Any]:
+        """Handle thank you messages."""
+        responses = [
+            "You're welcome! 😊 Let me know if you need anything else.",
+            "Happy to help! 🙌",
+            "Anytime! Need anything else?",
+            "No problem! 👍"
+        ]
+        import random
+        return {
+            "response": random.choice(responses),
+            "success": True
+        }
+    
     async def _handle_query(self, user_id: int, intent: Dict,
                              context: Dict = None) -> Dict[str, Any]:
         """Handle general queries about expenses."""
@@ -1221,6 +1366,13 @@ I track who owes whom. If you paid for dinner and split it with friends, they ow
                                      context: Dict = None) -> Dict[str, Any]:
         """Handle email provision for pending invites."""
         email_data = intent.get("email_data", {})
+        declined = intent.get("declined", False)
+        
+        if declined:
+            return {
+                "response": "Okay, I'll skip sending invites for now. You can add them later.",
+                "success": True
+            }
         
         if not email_data:
             return {
