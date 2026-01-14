@@ -1,10 +1,9 @@
 'use client';
 
-import { useEffect } from 'react';
-import { usePathname } from 'next/navigation';
+import { useEffect, useState } from 'react';
+import { usePathname, useRouter } from 'next/navigation';
 import Sidebar from '@/components/layout/Sidebar';
 import BottomNav from '@/components/layout/BottomNav';
-import MobileHeader from '@/components/layout/MobileHeader';
 import { cn } from '@/lib/utils';
 import api from '@/lib/api';
 
@@ -17,7 +16,32 @@ const KEEP_ALIVE_INTERVAL = 60 * 1000;
 
 export default function AppShell({ children }: AppShellProps) {
     const pathname = usePathname();
+    const router = useRouter();
+    const [isLoading, setIsLoading] = useState(true);
+    const [isAuthenticated, setIsAuthenticated] = useState(false);
+
     const isAuthPage = ['/login', '/register'].includes(pathname);
+
+    // Authentication check
+    useEffect(() => {
+        const checkAuth = () => {
+            // Check if token exists in localStorage
+            const token = typeof window !== 'undefined' ? localStorage.getItem('token') : null;
+
+            if (token) {
+                setIsAuthenticated(true);
+            } else {
+                setIsAuthenticated(false);
+                // Redirect to login if not on auth page
+                if (!isAuthPage) {
+                    router.push('/login');
+                }
+            }
+            setIsLoading(false);
+        };
+
+        checkAuth();
+    }, [pathname, router, isAuthPage]);
 
     // Backend Keep-Alive: Ping health endpoint to prevent Render from sleeping
     useEffect(() => {
@@ -39,19 +63,41 @@ export default function AppShell({ children }: AppShellProps) {
         return () => clearInterval(intervalId);
     }, []);
 
+    // Show loading state while checking auth
+    if (isLoading && !isAuthPage) {
+        return (
+            <div className="min-h-screen flex items-center justify-center bg-background">
+                <div className="flex flex-col items-center gap-4">
+                    <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-primary to-accent flex items-center justify-center animate-pulse">
+                        <span className="text-white font-bold text-lg">S</span>
+                    </div>
+                    <p className="text-muted-foreground text-sm">Loading...</p>
+                </div>
+            </div>
+        );
+    }
+
+    // On auth pages, just render children
+    if (isAuthPage) {
+        return <>{children}</>;
+    }
+
+    // If not authenticated and not on auth page, don't render (redirect will happen)
+    if (!isAuthenticated && !isAuthPage) {
+        return null;
+    }
+
     return (
         <>
-            {!isAuthPage && <MobileHeader />}
-            {!isAuthPage && <Sidebar />}
+            <Sidebar />
 
             <main className={cn(
-                "min-h-screen transition-all duration-200",
-                !isAuthPage && "md:ml-64 pb-[90px] md:pb-0 pt-16 md:pt-0"
+                "min-h-screen transition-all duration-200"
             )}>
                 {children}
             </main>
 
-            {!isAuthPage && <BottomNav />}
+            <BottomNav />
         </>
     );
 }
