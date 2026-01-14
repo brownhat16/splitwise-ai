@@ -3,15 +3,18 @@
 import { useState, useRef, useEffect } from 'react';
 import MessageBubble from '@/components/chat/MessageBubble';
 import ChatInput from '@/components/chat/ChatInput';
-import { Message, initialMessages } from '@/lib/mock-data';
+import WelcomeCards from '@/components/chat/WelcomeCards';
+import { Message } from '@/lib/mock-data';
 import api from '@/lib/api';
-import { TrashIcon } from '@heroicons/react/24/outline';
+import { Trash2 } from 'lucide-react';
+import { motion, AnimatePresence } from 'framer-motion';
 
 const CHAT_STORAGE_KEY = 'splitai_chat_history';
 
 export default function ChatPage() {
   const [messages, setMessages] = useState<Message[]>([]);
   const [isLoading, setIsLoading] = useState(false);
+  const [isInitialized, setIsInitialized] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   // Load chat history from localStorage on mount
@@ -20,26 +23,24 @@ export default function ChatPage() {
     if (saved) {
       try {
         const parsed = JSON.parse(saved);
-        // Convert timestamp strings back to Date objects
         const restored = parsed.map((m: Message) => ({
           ...m,
           timestamp: new Date(m.timestamp)
         }));
         setMessages(restored);
       } catch {
-        setMessages(initialMessages);
+        setMessages([]);
       }
-    } else {
-      setMessages(initialMessages);
     }
+    setIsInitialized(true);
   }, []);
 
   // Save chat history to localStorage whenever messages change
   useEffect(() => {
-    if (messages.length > 0) {
+    if (isInitialized && messages.length > 0) {
       localStorage.setItem(CHAT_STORAGE_KEY, JSON.stringify(messages));
     }
-  }, [messages]);
+  }, [messages, isInitialized]);
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -51,7 +52,7 @@ export default function ChatPage() {
 
   const clearHistory = () => {
     localStorage.removeItem(CHAT_STORAGE_KEY);
-    setMessages(initialMessages);
+    setMessages([]);
   };
 
   const handleSend = async (text: string) => {
@@ -76,23 +77,17 @@ export default function ChatPage() {
     setIsLoading(true);
 
     try {
-      // Call the actual API
       const response = await api.sendMessage(text);
 
-      // Remove thinking indicator and add response
       setMessages(prev => {
         const filtered = prev.filter(m => !m.isThinking);
 
-        // The AI response text already contains all expense details,
-        // so we don't need to show a separate expense card
         const aiMessage: Message = {
           id: Date.now().toString(),
           type: 'ai',
           content: response.response,
           timestamp: new Date(),
-          // Only show action buttons if it's a successful action (not a clarification)
-          actions: response.needs_clarification ? undefined : ['Undo', 'Explain'],
-          quickReplies: response.needs_clarification ? ['Yes', 'No'] : undefined,
+          actions: ['Undo', 'Explain'],
         };
 
         return [...filtered, aiMessage];
@@ -137,39 +132,74 @@ export default function ChatPage() {
     handleSend(reply);
   };
 
+  const hasConversation = messages.length > 0;
+
   return (
     <div className="flex flex-col h-screen md:pl-72 pt-16 md:pt-0">
       {/* Header */}
-      <header className="flex items-center justify-between px-4 h-14 bg-background/95 backdrop-blur-xl border-b border-border">
+      <header className="flex items-center justify-between px-4 sm:px-6 h-14 bg-background/95 backdrop-blur-xl border-b border-border">
         <h1 className="text-lg font-semibold text-foreground">💬 Chat</h1>
-        <button
-          onClick={clearHistory}
-          className="p-2 text-muted-foreground hover:text-destructive transition-colors rounded-lg hover:bg-destructive/10"
-          title="Clear chat history"
-        >
-          <TrashIcon className="w-5 h-5" />
-        </button>
+        {hasConversation && (
+          <motion.button
+            initial={{ opacity: 0, scale: 0.8 }}
+            animate={{ opacity: 1, scale: 1 }}
+            whileHover={{ scale: 1.05 }}
+            whileTap={{ scale: 0.95 }}
+            onClick={clearHistory}
+            className="p-2 text-muted-foreground hover:text-destructive transition-colors rounded-xl hover:bg-destructive/10"
+            title="Clear chat history"
+          >
+            <Trash2 className="w-5 h-5" />
+          </motion.button>
+        )}
       </header>
 
-      {/* Messages */}
-      <div className="flex-1 overflow-y-auto px-4 py-4 space-y-4 bg-background">
-        {/* Date separator */}
-        <div className="flex items-center justify-center">
-          <span className="px-3 py-1 text-xs text-slate-500 dark:text-slate-400 bg-white dark:bg-slate-800 rounded-full shadow-sm">
-            Today
-          </span>
-        </div>
+      {/* Messages Area */}
+      <div className="flex-1 overflow-y-auto px-4 sm:px-6 py-4 bg-background">
+        <AnimatePresence mode="wait">
+          {!hasConversation && isInitialized ? (
+            <motion.div
+              key="welcome"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="max-w-3xl mx-auto"
+            >
+              <WelcomeCards onCommandClick={handleSend} />
+            </motion.div>
+          ) : (
+            <motion.div
+              key="messages"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              className="max-w-3xl mx-auto space-y-4"
+            >
+              {/* Date separator */}
+              <div className="flex items-center justify-center">
+                <span className="px-3 py-1 text-xs text-muted-foreground bg-muted rounded-full">
+                  Today
+                </span>
+              </div>
 
-        {messages.map((message) => (
-          <MessageBubble
-            key={message.id}
-            message={message}
-            onAction={handleAction}
-            onQuickReply={handleQuickReply}
-          />
-        ))}
+              {messages.map((message, index) => (
+                <motion.div
+                  key={message.id}
+                  initial={{ opacity: 0, y: 10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: index * 0.05 }}
+                >
+                  <MessageBubble
+                    message={message}
+                    onAction={handleAction}
+                    onQuickReply={handleQuickReply}
+                  />
+                </motion.div>
+              ))}
 
-        <div ref={messagesEndRef} />
+              <div ref={messagesEndRef} />
+            </motion.div>
+          )}
+        </AnimatePresence>
       </div>
 
       {/* Input */}
